@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, MapPin, Phone, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, Image as ImageIcon, X, LogOut } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut } from 'lucide-react';
 import { db } from './firebase';
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
@@ -14,19 +14,19 @@ const INITIAL_PRODUCTS = [
 ];
 
 export default function App() {
-  // --- States (แก้ Type เป็น <any> เพื่อแก้ Error ตอน Deploy) ---
+  // --- States ---
   const [view, setView] = useState('home'); 
-  const [products, setProducts] = useState<any[]>([]); // แก้ตรงนี้
+  const [products, setProducts] = useState<any[]>([]); 
   const [bannerUrl, setBannerUrl] = useState("https://images.unsplash.com/photo-1549417229-aa67d3263c09?w=2000");
-  const [selectedProduct, setSelectedProduct] = useState<any>(null); // แก้ตรงนี้
+  const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ name: '', phone: '', address: '' });
   
   // Admin States
-  const [orders, setOrders] = useState<any[]>([]); // แก้ตรงนี้
+  const [orders, setOrders] = useState<any[]>([]); 
   const [adminPassInput, setAdminPassInput] = useState('');
   const [adminTab, setAdminTab] = useState('orders'); 
-  const [editingProduct, setEditingProduct] = useState<any>(null); // แก้ตรงนี้
+  const [editingProduct, setEditingProduct] = useState<any>(null); 
 
   // --- 1. โหลดข้อมูลเมื่อเข้าเว็บ ---
   useEffect(() => {
