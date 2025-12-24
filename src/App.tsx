@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User } from 'lucide-react';
 import { db } from './firebase';
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
 // --- รหัสผ่านเข้าหลังบ้าน ---
 const ADMIN_PASSWORD = "8787"; 
 
-// --- ข้อมูลสินค้าเริ่มต้น (กรณีไม่มีใน DB) ---
+// --- ข้อมูลสินค้าเริ่มต้น ---
 const INITIAL_PRODUCTS = [
   { id: '1', name: "กระเป๋าเดินทาง 20 นิ้ว", description: "สี Midnight Blue (Limited)", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true },
   { id: '2', name: "เสื้อฮาวายลายช้าง (L)", description: "ผ้าไหมอิตาลี ใส่สบาย", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true },
@@ -34,7 +34,7 @@ export default function App() {
   const [adminPassInput, setAdminPassInput] = useState('');
   const [adminTab, setAdminTab] = useState('orders'); 
   const [editingProduct, setEditingProduct] = useState<any>(null); 
-  const [editingOrder, setEditingOrder] = useState<any>(null); // State สำหรับแก้ไขออเดอร์
+  const [editingOrder, setEditingOrder] = useState<any>(null); 
 
   // --- 1. โหลดข้อมูลเมื่อเข้าเว็บ ---
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function App() {
         product: selectedProduct.name,
         productId: selectedProduct.id,
         timestamp: Timestamp.now(),
-        status: 'pending' // สถานะเริ่มต้น
+        status: 'pending'
       });
       setLoading(false);
       setView('success');
@@ -114,7 +114,6 @@ export default function App() {
     setOrders(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
-  // จัดการสินค้า (Product)
   const handleSaveProduct = async (e: any) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -142,11 +141,10 @@ export default function App() {
     fetchContent();
   };
 
-  // จัดการออเดอร์ (Order)
   const handleDeleteOrder = async (id: string) => {
     if(!confirm("ยืนยันการลบออเดอร์นี้? (กู้คืนไม่ได้)")) return;
     await deleteDoc(doc(db, "orders", id));
-    fetchOrders(); // โหลดข้อมูลใหม่
+    fetchOrders(); 
   };
 
   const handleSaveOrder = async (e: any) => {
@@ -154,21 +152,19 @@ export default function App() {
     if (!editingOrder) return;
     try {
       const { id, ...data } = editingOrder;
-      // แปลง timestamp กลับไปถ้าจำเป็น หรือปล่อยผ่านถ้าไม่ได้แก้
       await updateDoc(doc(db, "orders", id), data);
       setEditingOrder(null);
       fetchOrders();
     } catch (err: any) { alert("บันทึกออเดอร์ไม่สำเร็จ: " + err.message); }
   };
 
-  // จัดการ Banner
   const handleSaveBanner = async () => {
     await setDoc(doc(db, "settings", "main"), bannerSettings);
     alert("บันทึกการตั้งค่าหน้าเว็บเรียบร้อย");
   };
 
   const Footer = () => (
-    <footer className="mt-12 py-8 bg-white border-t border-gray-200 text-center px-4">
+    <footer className="mt-auto py-8 bg-white border-t border-gray-200 text-center px-4">
       <p className="text-gray-600 text-sm md:text-base">
         © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
         <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์</span>
@@ -239,45 +235,60 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (Responsive) */}
+        {/* VIEW: FORM (Fully Responsive Fixed) */}
         {view === 'form' && selectedProduct && (
-          <div className="max-w-xl mx-auto animate-slide-up py-4">
-            <button onClick={() => setView('home')} className="mb-4 md:mb-6 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
-              <ArrowLeft size={18} /> ย้อนกลับไปเลือกสินค้า
+          <div className="w-full max-w-lg mx-auto animate-slide-up pb-10">
+            <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
+              <ArrowLeft size={18} /> ย้อนกลับ
             </button>
             
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
-              <div className="bg-gray-50 p-6 border-b flex gap-4 items-center">
-                 <img src={selectedProduct.imageUrl} className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover shadow-sm bg-white" />
+            <div className="bg-white rounded-xl md:rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+              {/* Product Header */}
+              <div className="bg-blue-50/50 p-4 md:p-6 border-b flex gap-4 items-center">
+                 <img src={selectedProduct.imageUrl} className="w-16 h-16 md:w-20 md:h-20 rounded-lg object-cover shadow-sm bg-white" />
                  <div>
-                   <div className="text-[#003781] text-xs font-bold uppercase mb-1">ของขวัญที่คุณเลือก</div>
-                   <h2 className="text-lg md:text-xl font-bold text-gray-900 leading-tight">{selectedProduct.name}</h2>
+                   <div className="text-[#003781] text-xs font-bold uppercase mb-1">ของขวัญที่เลือก</div>
+                   <h2 className="text-base md:text-xl font-bold text-gray-900 leading-tight">{selectedProduct.name}</h2>
                  </div>
               </div>
 
-              <div className="p-6 md:p-8">
-                <form onSubmit={handleSubmitOrder} className="space-y-4 md:space-y-6">
+              {/* Form Inputs */}
+              <div className="p-5 md:p-8">
+                <form onSubmit={handleSubmitOrder} className="space-y-5">
+                  
+                  {/* ชื่อ */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">ชื่อ-นามสกุล</label>
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                      <User size={16} className="text-[#003781]"/> ชื่อ-นามสกุล
+                    </label>
                     <input required className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
-                      placeholder="ระบุชื่อจริง" 
+                      placeholder="ระบุชื่อจริง นามสกุล" 
                       value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                   </div>
+
+                  {/* เบอร์โทร */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">เบอร์โทรศัพท์</label>
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                       <Phone size={16} className="text-[#003781]"/> เบอร์โทรศัพท์
+                    </label>
                     <input required type="tel" className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
-                      placeholder="08x-xxx-xxxx" 
+                      placeholder="เช่น 0891234567" 
                       value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                   </div>
+
+                  {/* ที่อยู่ */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">ที่อยู่จัดส่ง</label>
-                    <textarea required rows={3} className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
-                      placeholder="บ้านเลขที่, หมู่บ้าน, ถนน, เขต/อำเภอ, จังหวัด..." 
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                      <MapPin size={16} className="text-[#003781]"/> ที่อยู่จัดส่ง
+                    </label>
+                    <textarea required rows={4} className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base resize-none" 
+                      placeholder="บ้านเลขที่, หมู่บ้าน/คอนโด, ซอย, ถนน&#10;แขวง/ตำบล, เขต/อำเภอ&#10;จังหวัด, รหัสไปรษณีย์" 
                       value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+                    <p className="text-xs text-gray-400 mt-2 text-right">*กรุณาระบุให้ครบถ้วนเพื่อความรวดเร็ว</p>
                   </div>
 
-                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-4 active:scale-95">
-                    {loading ? 'กำลังบันทึกข้อมูล...' : 'ยืนยันการรับสิทธิ์'}
+                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-6 active:scale-95 flex items-center justify-center gap-2">
+                    {loading ? 'กำลังบันทึก...' : <><CheckCircle size={20}/> ยืนยันการรับสิทธิ์</>}
                   </button>
                 </form>
               </div>
@@ -285,7 +296,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: SUCCESS (Updated Text) */}
+        {/* VIEW: SUCCESS */}
         {view === 'success' && (
           <div className="max-w-md mx-auto text-center py-10 md:py-16 animate-fade-in px-4">
             <div className="w-20 h-20 md:w-24 md:h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -332,7 +343,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: ADMIN DASHBOARD (Responsive & Feature Rich) */}
+        {/* VIEW: ADMIN DASHBOARD (Responsive) */}
         {view === 'admin' && (
           <div className="animate-fade-in">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -353,7 +364,7 @@ export default function App() {
              
              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6 min-h-[400px]">
                
-               {/* TAB: ORDERS (With Edit/Delete) */}
+               {/* TAB: ORDERS */}
                {adminTab === 'orders' && (
                  <div>
                     {/* Modal แก้ไขออเดอร์ */}
@@ -380,7 +391,7 @@ export default function App() {
                       </div>
                     )}
 
-                   {/* ตารางแบบเลื่อนได้ (Responsive) */}
+                   {/* ตารางแบบเลื่อนได้ */}
                    <div className="overflow-x-auto">
                      <table className="w-full text-left text-sm min-w-[800px]">
                        <thead className="bg-gray-50 text-gray-700 font-bold border-b">
@@ -469,7 +480,7 @@ export default function App() {
                  </div>
                )}
 
-               {/* TAB: SETTINGS (Editable Texts!) */}
+               {/* TAB: SETTINGS */}
                {adminTab === 'settings' && (
                  <div className="max-w-xl">
                    <h3 className="font-bold text-lg mb-4 border-b pb-2">ตั้งค่าหน้าเว็บ</h3>
@@ -488,7 +499,7 @@ export default function App() {
                      <div>
                        <label className="block text-sm font-bold text-gray-700 mb-1">ลิงก์รูปภาพ (Banner Image URL)</label>
                        <input className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.bannerUrl} onChange={e => setBannerSettings({...bannerSettings, bannerUrl: e.target.value})} />
-                       <p className="text-xs text-gray-400 mt-1">แนะนำ: ใช้รูปแนวนอน ขนาด 1200px ขึ้นไป (ฝากรูปที่ imgur.com แล้วนำลิงก์มาใส่)</p>
+                       <p className="text-xs text-gray-400 mt-1">แนะนำ: ใช้รูปแนวนอน ขนาด 1200px ขึ้นไป</p>
                      </div>
 
                      <button onClick={handleSaveBanner} className="bg-[#003781] hover:bg-[#002860] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all w-full justify-center md:w-auto">
