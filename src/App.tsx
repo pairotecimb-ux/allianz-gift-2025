@@ -214,7 +214,7 @@ export default function App() {
             </div>
 
             <div id="products-grid" className="mb-6 flex items-center gap-2 text-xl md:text-2xl font-bold text-gray-800">
-               <ShoppingBag className="text-[#003781]"/> รายการของขวัญ
+               <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
             </div>
 
             {/* Grid System */}
