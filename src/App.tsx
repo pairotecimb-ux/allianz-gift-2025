@@ -3,7 +3,7 @@ import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus
 import { db } from './firebase';
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
-// --- รหัสผ่านเข้าหลังบ้าน (แก้ไขแล้ว) ---
+// --- รหัสผ่านเข้าหลังบ้าน ---
 const ADMIN_PASSWORD = "8787"; 
 
 // --- ข้อมูลสินค้าเริ่มต้น ---
@@ -189,7 +189,8 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Main Content Area - ปรับ padding ให้ Dynamic ตามหน้า */}
+      <div className={`flex-grow w-full max-w-7xl mx-auto ${view === 'form' ? 'px-0 md:px-6' : 'px-4 sm:px-6 lg:px-8'} py-6`}>
         
         {/* VIEW: HOME */}
         {view === 'home' && (
@@ -236,16 +237,20 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (Fixed: Full width on mobile, minimal padding) */}
+        {/* VIEW: FORM (FULL SCREEN ON MOBILE) */}
         {view === 'form' && selectedProduct && (
-          <div className="w-full max-w-4xl mx-auto animate-slide-up pb-10">
-            <button onClick={() => setView('home')} className="mb-6 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-base">
-              <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
-            </button>
+          <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
+            {/* ปุ่มย้อนกลับ - ใส่ Margin ให้ห่างจากขอบจอเล็กน้อยบนมือถือ */}
+            <div className="px-4 md:px-0">
+               <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-base">
+                 <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
+               </button>
+            </div>
             
-            <div className="bg-white rounded-xl md:rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+            {/* Form Card - บนมือถือ: เต็มจอ (rounded-none), บนคอม: การ์ดลอย (rounded-2xl) */}
+            <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0">
               {/* Product Header */}
-              <div className="bg-blue-50/50 p-5 md:p-8 border-b flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
+              <div className="bg-blue-50/50 p-6 md:p-8 border-b flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
                  <img src={selectedProduct.imageUrl} className="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md bg-white border-4 border-white" />
                  <div>
                    <div className="text-[#003781] text-sm font-bold uppercase mb-2 tracking-wide">ของขวัญที่คุณเลือก</div>
@@ -254,8 +259,8 @@ export default function App() {
                  </div>
               </div>
 
-              {/* Form Inputs - ลด Padding มือถือ (p-5) เพื่อให้พื้นที่กรอกดูกว้างขึ้น */}
-              <div className="p-5 md:p-10">
+              {/* Form Inputs */}
+              <div className="p-6 md:p-10">
                 <form onSubmit={handleSubmitOrder} className="space-y-6">
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
