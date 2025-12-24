@@ -44,7 +44,6 @@ export default function App() {
   const fetchContent = async () => {
     setLoading(true);
     try {
-      // โหลดสินค้า
       const pQuery = query(collection(db, "products"));
       const pSnapshot = await getDocs(pQuery);
       let pList = pSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -57,7 +56,6 @@ export default function App() {
       }
       setProducts(pList);
 
-      // โหลดตั้งค่า Banner
       const settingSnap = await getDoc(doc(db, "settings", "main"));
       if (settingSnap.exists()) {
         const data = settingSnap.data();
@@ -189,8 +187,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Content Area - ปรับ padding ให้ Dynamic ตามหน้า */}
-      <div className={`flex-grow w-full max-w-7xl mx-auto ${view === 'form' ? 'px-0 md:px-6' : 'px-4 sm:px-6 lg:px-8'} py-6`}>
+      <div className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         
         {/* VIEW: HOME */}
         {view === 'home' && (
@@ -214,7 +211,7 @@ export default function App() {
             </div>
 
             <div id="products-grid" className="mb-6 flex items-center gap-2 text-xl md:text-2xl font-bold text-gray-800">
-               <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
+               <ShoppingBag className="text-[#003781]"/> รายการของขวัญ
             </div>
 
             {/* Grid System */}
@@ -237,52 +234,48 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (FULL SCREEN ON MOBILE) */}
+        {/* VIEW: FORM (Center Style - แก้ให้มีระยะขอบสวยงาม) */}
         {view === 'form' && selectedProduct && (
-          <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
-            {/* ปุ่มย้อนกลับ - ใส่ Margin ให้ห่างจากขอบจอเล็กน้อยบนมือถือ */}
-            <div className="px-4 md:px-0">
-               <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-base">
-                 <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
-               </button>
-            </div>
+          <div className="w-full max-w-lg mx-auto animate-slide-up pb-10">
+            {/* ปุ่มย้อนกลับ */}
+            <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-base">
+              <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
+            </button>
             
-            {/* Form Card - บนมือถือ: เต็มจอ (rounded-none), บนคอม: การ์ดลอย (rounded-2xl) */}
-            <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0">
+            {/* Card Container - มีเงาและขอบมน */}
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
               {/* Product Header */}
-              <div className="bg-blue-50/50 p-6 md:p-8 border-b flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
-                 <img src={selectedProduct.imageUrl} className="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md bg-white border-4 border-white" />
+              <div className="bg-blue-50/50 p-6 border-b flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
+                 <img src={selectedProduct.imageUrl} className="w-32 h-32 rounded-xl object-cover shadow-md bg-white border-4 border-white" />
                  <div>
                    <div className="text-[#003781] text-sm font-bold uppercase mb-2 tracking-wide">ของขวัญที่คุณเลือก</div>
-                   <h2 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h2>
+                   <h2 className="text-2xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h2>
                    <p className="text-gray-600">{selectedProduct.description}</p>
                  </div>
               </div>
 
               {/* Form Inputs */}
-              <div className="p-6 md:p-10">
+              <div className="p-6 md:p-8">
                 <form onSubmit={handleSubmitOrder} className="space-y-6">
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* ชื่อ */}
-                    <div>
-                        <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                        <User size={18} className="text-[#003781]"/> ชื่อ-นามสกุล
-                        </label>
-                        <input required className="w-full px-4 py-4 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
-                        placeholder="ระบุชื่อจริง นามสกุล" 
-                        value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                    </div>
+                  {/* ชื่อ */}
+                  <div>
+                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                      <User size={18} className="text-[#003781]"/> ชื่อ-นามสกุล
+                      </label>
+                      <input required className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
+                      placeholder="ระบุชื่อจริง นามสกุล" 
+                      value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                  </div>
 
-                    {/* เบอร์โทร */}
-                    <div>
-                        <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                        <Phone size={18} className="text-[#003781]"/> เบอร์โทรศัพท์
-                        </label>
-                        <input required type="tel" className="w-full px-4 py-4 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
-                        placeholder="เช่น 0891234567" 
-                        value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-                    </div>
+                  {/* เบอร์โทร */}
+                  <div>
+                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                      <Phone size={18} className="text-[#003781]"/> เบอร์โทรศัพท์
+                      </label>
+                      <input required type="tel" className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
+                      placeholder="เช่น 0891234567" 
+                      value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                   </div>
 
                   {/* ที่อยู่ */}
@@ -290,13 +283,13 @@ export default function App() {
                     <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                       <MapPin size={18} className="text-[#003781]"/> ที่อยู่จัดส่ง
                     </label>
-                    <textarea required rows={5} className="w-full px-4 py-4 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base resize-none leading-relaxed" 
+                    <textarea required rows={5} className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base resize-none leading-relaxed" 
                       placeholder="บ้านเลขที่, หมู่บ้าน/คอนโด, ซอย, ถนน&#10;แขวง/ตำบล, เขต/อำเภอ&#10;จังหวัด, รหัสไปรษณีย์" 
                       value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
                     <p className="text-xs text-gray-400 mt-2 text-right">*กรุณาระบุให้ครบถ้วนเพื่อความรวดเร็วในการจัดส่ง</p>
                   </div>
 
-                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 md:py-5 rounded-xl font-bold text-lg md:text-xl shadow-lg transition-all mt-8 active:scale-95 flex items-center justify-center gap-3">
+                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-8 active:scale-95 flex items-center justify-center gap-3">
                     {loading ? 'กำลังบันทึก...' : <><CheckCircle size={24}/> ยืนยันการรับสิทธิ์</>}
                   </button>
                 </form>
@@ -307,22 +300,22 @@ export default function App() {
 
         {/* VIEW: SUCCESS */}
         {view === 'success' && (
-          <div className="max-w-2xl mx-auto text-center py-12 md:py-20 animate-fade-in px-4">
-            <div className="w-24 h-24 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
-              <CheckCircle className="text-green-600 w-12 h-12 md:w-14 md:h-14" />
+          <div className="max-w-xl mx-auto text-center py-12 md:py-20 animate-fade-in">
+            <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
+              <CheckCircle className="text-green-600 w-12 h-12" />
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">บันทึกข้อมูลสำเร็จ!</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-6">บันทึกข้อมูลสำเร็จ!</h2>
             
-            <div className="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-gray-100 mb-10 text-left">
-              <p className="text-gray-700 leading-relaxed text-base md:text-lg">
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 mb-10 text-left">
+              <p className="text-gray-700 leading-relaxed text-lg">
                 ขอบคุณที่ร่วมรายการ<br/>
                 เจ้าหน้าที่จะทำการจัดส่งของขวัญตามที่อยู่ที่ระบุไว้ <br/>
                 <span className="font-bold text-[#003781]">ภายใน 7-10 วันทำการ</span>
               </p>
               <hr className="my-6 border-gray-100"/>
-              <p className="text-gray-500 text-sm md:text-base">
+              <p className="text-gray-600 text-base">
                 หากมีข้อสงสัยติดต่อ: <br/>
-                <span className="font-semibold text-gray-800 text-lg">คุณนัท 064-242-8787</span>
+                <span className="font-bold text-gray-900 text-xl">คุณนัท 064-242-8787</span>
               </p>
             </div>
 
