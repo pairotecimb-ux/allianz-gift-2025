@@ -1,23 +1,30 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package } from 'lucide-react';
 import { db } from './firebase';
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
 // --- รหัสผ่านเข้าหลังบ้าน ---
-const ADMIN_PASSWORD = "1234"; 
+const ADMIN_PASSWORD = "8787"; 
 
-// --- ข้อมูลเริ่มต้น ---
+// --- ข้อมูลสินค้าเริ่มต้น (กรณีไม่มีใน DB) ---
 const INITIAL_PRODUCTS = [
-  { id: '1', name: "กระเป๋าเดินทาง 20 นิ้ว", description: "สี Midnight Blue (Limited)", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true, stock: 10 },
-  { id: '2', name: "เสื้อฮาวายลายช้าง (L)", description: "ผ้าไหมอิตาลี ใส่สบาย", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true, stock: 50 },
-  { id: '3', name: "ชุด Gift Set รักษ์โลก", description: "แก้วน้ำ + ถุงผ้า", imageUrl: "https://images.unsplash.com/photo-1542435503-956c469947f6?w=1000", active: true, stock: 30 },
+  { id: '1', name: "กระเป๋าเดินทาง 20 นิ้ว", description: "สี Midnight Blue (Limited)", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true },
+  { id: '2', name: "เสื้อฮาวายลายช้าง (L)", description: "ผ้าไหมอิตาลี ใส่สบาย", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true },
+  { id: '3', name: "ชุด Gift Set รักษ์โลก", description: "แก้วน้ำ + ถุงผ้า", imageUrl: "https://images.unsplash.com/photo-1542435503-956c469947f6?w=1000", active: true },
 ];
 
 export default function App() {
   // --- States ---
   const [view, setView] = useState('home'); 
   const [products, setProducts] = useState<any[]>([]); 
-  const [bannerUrl, setBannerUrl] = useState("https://images.unsplash.com/photo-1549417229-aa67d3263c09?w=2000");
+  
+  // Banner Settings State
+  const [bannerSettings, setBannerSettings] = useState({
+    bannerUrl: "https://images.unsplash.com/photo-1549417229-aa67d3263c09?w=2000",
+    title: "ของขวัญพิเศษ แทนคำขอบคุณ",
+    subtitle: "Privilege 2025"
+  });
+
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ name: '', phone: '', address: '' });
@@ -27,6 +34,7 @@ export default function App() {
   const [adminPassInput, setAdminPassInput] = useState('');
   const [adminTab, setAdminTab] = useState('orders'); 
   const [editingProduct, setEditingProduct] = useState<any>(null); 
+  const [editingOrder, setEditingOrder] = useState<any>(null); // State สำหรับแก้ไขออเดอร์
 
   // --- 1. โหลดข้อมูลเมื่อเข้าเว็บ ---
   useEffect(() => {
@@ -36,6 +44,7 @@ export default function App() {
   const fetchContent = async () => {
     setLoading(true);
     try {
+      // โหลดสินค้า
       const pQuery = query(collection(db, "products"));
       const pSnapshot = await getDocs(pQuery);
       let pList = pSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -48,11 +57,17 @@ export default function App() {
       }
       setProducts(pList);
 
+      // โหลดตั้งค่า Banner
       const settingSnap = await getDoc(doc(db, "settings", "main"));
       if (settingSnap.exists()) {
-        setBannerUrl(settingSnap.data().bannerUrl);
+        const data = settingSnap.data();
+        setBannerSettings({
+          bannerUrl: data.bannerUrl || bannerSettings.bannerUrl,
+          title: data.title || bannerSettings.title,
+          subtitle: data.subtitle || bannerSettings.subtitle
+        });
       } else {
-        await setDoc(doc(db, "settings", "main"), { bannerUrl: bannerUrl });
+        await setDoc(doc(db, "settings", "main"), bannerSettings);
       }
 
     } catch (err) {
@@ -71,7 +86,7 @@ export default function App() {
         product: selectedProduct.name,
         productId: selectedProduct.id,
         timestamp: Timestamp.now(),
-        status: 'pending'
+        status: 'pending' // สถานะเริ่มต้น
       });
       setLoading(false);
       setView('success');
@@ -99,10 +114,10 @@ export default function App() {
     setOrders(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
+  // จัดการสินค้า (Product)
   const handleSaveProduct = async (e: any) => {
     e.preventDefault();
     if (!editingProduct) return;
-
     try {
       const isNew = !editingProduct.id;
       if (isNew) {
@@ -113,9 +128,7 @@ export default function App() {
       }
       setEditingProduct(null);
       fetchContent(); 
-    } catch (err: any) {
-      alert("บันทึกไม่สำเร็จ: " + err.message);
-    }
+    } catch (err: any) { alert("Error: " + err.message); }
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -129,16 +142,36 @@ export default function App() {
     fetchContent();
   };
 
+  // จัดการออเดอร์ (Order)
+  const handleDeleteOrder = async (id: string) => {
+    if(!confirm("ยืนยันการลบออเดอร์นี้? (กู้คืนไม่ได้)")) return;
+    await deleteDoc(doc(db, "orders", id));
+    fetchOrders(); // โหลดข้อมูลใหม่
+  };
+
+  const handleSaveOrder = async (e: any) => {
+    e.preventDefault();
+    if (!editingOrder) return;
+    try {
+      const { id, ...data } = editingOrder;
+      // แปลง timestamp กลับไปถ้าจำเป็น หรือปล่อยผ่านถ้าไม่ได้แก้
+      await updateDoc(doc(db, "orders", id), data);
+      setEditingOrder(null);
+      fetchOrders();
+    } catch (err: any) { alert("บันทึกออเดอร์ไม่สำเร็จ: " + err.message); }
+  };
+
+  // จัดการ Banner
   const handleSaveBanner = async () => {
-    await setDoc(doc(db, "settings", "main"), { bannerUrl: bannerUrl });
-    alert("บันทึก Banner แล้ว");
+    await setDoc(doc(db, "settings", "main"), bannerSettings);
+    alert("บันทึกการตั้งค่าหน้าเว็บเรียบร้อย");
   };
 
   const Footer = () => (
-    <footer className="mt-12 py-6 border-t border-gray-200 text-center">
-      <p className="text-gray-500 text-sm">
+    <footer className="mt-12 py-8 bg-white border-t border-gray-200 text-center px-4">
+      <p className="text-gray-600 text-sm md:text-base">
         © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-        <span className="text-xs text-gray-400">Campaign by Marketing Team</span>
+        <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์</span>
       </p>
     </footer>
   );
@@ -148,8 +181,8 @@ export default function App() {
       
       {/* Navbar */}
       <div className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div onClick={() => setView('home')} className="cursor-pointer text-[#003781] font-bold text-xl md:text-2xl flex items-center gap-2">
+        <div className="max-w-7xl mx-auto px-4 py-3 md:py-4 flex items-center justify-between">
+          <div onClick={() => setView('home')} className="cursor-pointer text-[#003781] font-bold text-lg md:text-2xl flex items-center gap-2">
             Allianz <span className="text-gray-400 font-light">Ayudhya</span>
           </div>
           {view !== 'admin' && view !== 'login' && (
@@ -165,34 +198,39 @@ export default function App() {
         {/* VIEW: HOME */}
         {view === 'home' && (
            <div className="animate-fade-in">
-            <div className="relative h-64 md:h-96 rounded-2xl overflow-hidden shadow-xl mb-10 group">
-              <img src={bannerUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="Banner"/>
-              <div className="absolute inset-0 bg-gradient-to-r from-[#003781]/80 to-transparent flex items-center p-8 md:p-16">
-                 <div className="text-white max-w-xl">
-                    <span className="bg-white/20 backdrop-blur text-xs px-3 py-1 rounded-full mb-4 inline-block border border-white/30">Privilege 2025</span>
-                    <h1 className="text-3xl md:text-5xl font-bold mb-4 drop-shadow-md">ของขวัญพิเศษ<br/>แทนคำขอบคุณ</h1>
-                    <button onClick={() => document.getElementById('products-grid')?.scrollIntoView({behavior:'smooth'})} className="bg-white text-[#003781] px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-50 transition">
+            {/* Banner Section */}
+            <div className="relative h-56 md:h-96 rounded-2xl overflow-hidden shadow-xl mb-8 md:mb-10 group">
+              <img src={bannerSettings.bannerUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="Banner"/>
+              <div className="absolute inset-0 bg-gradient-to-r from-[#003781]/90 via-[#003781]/60 to-transparent flex items-center p-6 md:p-16">
+                 <div className="text-white max-w-2xl">
+                    <span className="bg-white/20 backdrop-blur text-xs md:text-sm px-3 py-1 rounded-full mb-3 md:mb-4 inline-block border border-white/30 shadow-sm">
+                      {bannerSettings.subtitle}
+                    </span>
+                    <h1 className="text-2xl md:text-5xl font-bold mb-4 md:mb-6 leading-tight drop-shadow-lg whitespace-pre-line">
+                      {bannerSettings.title}
+                    </h1>
+                    <button onClick={() => document.getElementById('products-grid')?.scrollIntoView({behavior:'smooth'})} className="bg-white text-[#003781] px-5 py-2 md:px-6 md:py-3 rounded-xl text-sm md:text-base font-bold shadow-lg hover:bg-blue-50 transition active:scale-95">
                       เลือกของขวัญ
                     </button>
                  </div>
               </div>
             </div>
 
-            <div id="products-grid" className="mb-6 flex items-center gap-2 text-xl font-bold text-gray-800">
-               <ShoppingBag className="text-[#003781]"/> รายการของขวัญ ({products.filter(p=>p.active).length})
+            <div id="products-grid" className="mb-6 flex items-center gap-2 text-lg md:text-xl font-bold text-gray-800">
+               <ShoppingBag className="text-[#003781]"/> รายการของขวัญ
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-8">
               {products.filter(p => p.active).map((p) => (
-                <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group h-full flex flex-col">
-                  <div className="h-56 overflow-hidden relative">
+                <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col h-full">
+                  <div className="h-48 md:h-64 overflow-hidden relative bg-gray-100">
                     <img src={p.imageUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/>
                   </div>
-                  <div className="p-6 flex flex-col flex-grow">
-                    <h3 className="font-bold text-lg text-gray-900 mb-2">{p.name}</h3>
-                    <p className="text-gray-500 text-sm mb-4 flex-grow">{p.description}</p>
-                    <button onClick={() => { setSelectedProduct(p); setView('form'); }} className="w-full bg-[#003781] text-white py-3 rounded-xl font-bold shadow-blue-900/10 hover:bg-[#002860] hover:shadow-lg transition-all active:scale-95">
-                      แลกรับสิทธิ์นี้
+                  <div className="p-5 flex flex-col flex-grow">
+                    <h3 className="font-bold text-lg text-gray-900 mb-2 line-clamp-1">{p.name}</h3>
+                    <p className="text-gray-500 text-sm mb-4 flex-grow line-clamp-2">{p.description}</p>
+                    <button onClick={() => { setSelectedProduct(p); setView('form'); }} className="w-full bg-[#003781] text-white py-3 rounded-xl font-bold text-sm md:text-base shadow-blue-900/10 hover:bg-[#002860] hover:shadow-lg transition-all active:scale-95">
+                      แลกรับสิทธิ์
                     </button>
                   </div>
                 </div>
@@ -201,45 +239,45 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM */}
+        {/* VIEW: FORM (Responsive) */}
         {view === 'form' && selectedProduct && (
-          <div className="max-w-2xl mx-auto animate-slide-up py-4">
-            <button onClick={() => setView('home')} className="mb-6 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors">
-              <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
+          <div className="max-w-xl mx-auto animate-slide-up py-4">
+            <button onClick={() => setView('home')} className="mb-4 md:mb-6 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
+              <ArrowLeft size={18} /> ย้อนกลับไปเลือกสินค้า
             </button>
             
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
               <div className="bg-gray-50 p-6 border-b flex gap-4 items-center">
-                 <img src={selectedProduct.imageUrl} className="w-20 h-20 rounded-lg object-cover shadow-sm bg-white" />
+                 <img src={selectedProduct.imageUrl} className="w-20 h-20 md:w-24 md:h-24 rounded-lg object-cover shadow-sm bg-white" />
                  <div>
-                   <div className="text-[#003781] text-xs font-bold uppercase mb-1">Items Selected</div>
-                   <h2 className="text-xl font-bold text-gray-900">{selectedProduct.name}</h2>
+                   <div className="text-[#003781] text-xs font-bold uppercase mb-1">ของขวัญที่คุณเลือก</div>
+                   <h2 className="text-lg md:text-xl font-bold text-gray-900 leading-tight">{selectedProduct.name}</h2>
                  </div>
               </div>
 
               <div className="p-6 md:p-8">
-                <form onSubmit={handleSubmitOrder} className="space-y-5">
+                <form onSubmit={handleSubmitOrder} className="space-y-4 md:space-y-6">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">ชื่อ-นามสกุล</label>
-                    <input required className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] focus:border-transparent outline-none transition" 
+                    <input required className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
                       placeholder="ระบุชื่อจริง" 
                       value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">เบอร์โทรศัพท์</label>
-                    <input required type="tel" className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition" 
+                    <input required type="tel" className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
                       placeholder="08x-xxx-xxxx" 
                       value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">ที่อยู่จัดส่ง</label>
-                    <textarea required rows={3} className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition" 
+                    <textarea required rows={3} className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
                       placeholder="บ้านเลขที่, หมู่บ้าน, ถนน, เขต/อำเภอ, จังหวัด..." 
                       value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
                   </div>
 
-                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-4">
-                    {loading ? 'กำลังบันทึกข้อมูล...' : 'ยืนยันรับสิทธิ์'}
+                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-4 active:scale-95">
+                    {loading ? 'กำลังบันทึกข้อมูล...' : 'ยืนยันการรับสิทธิ์'}
                   </button>
                 </form>
               </div>
@@ -247,17 +285,28 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: SUCCESS */}
+        {/* VIEW: SUCCESS (Updated Text) */}
         {view === 'success' && (
-          <div className="max-w-md mx-auto text-center py-16 animate-fade-in">
-            <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="text-green-600 w-12 h-12" />
+          <div className="max-w-md mx-auto text-center py-10 md:py-16 animate-fade-in px-4">
+            <div className="w-20 h-20 md:w-24 md:h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="text-green-600 w-10 h-10 md:w-12 md:h-12" />
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">บันทึกข้อมูลสำเร็จ!</h2>
-            <p className="text-gray-600 mb-8">
-              ขอบคุณที่ร่วมรายการ<br/>เจ้าหน้าที่จะทำการจัดส่งของขวัญตามที่อยู่ที่ระบุไว้
-            </p>
-            <button onClick={() => window.location.reload()} className="bg-[#003781] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#002860] shadow-lg transition-all w-full md:w-auto">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">บันทึกข้อมูลสำเร็จ!</h2>
+            
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8 text-left">
+              <p className="text-gray-700 leading-relaxed text-sm md:text-base">
+                ขอบคุณที่ร่วมรายการ<br/>
+                เจ้าหน้าที่จะทำการจัดส่งของขวัญตามที่อยู่ที่ระบุไว้ <br/>
+                <span className="font-bold text-[#003781]">ภายใน 7-10 วันทำการ</span>
+              </p>
+              <hr className="my-4"/>
+              <p className="text-gray-500 text-sm">
+                หากมีข้อสงสัยติดต่อ: <br/>
+                <span className="font-semibold text-gray-800">คุณนัท 064-242-8787</span>
+              </p>
+            </div>
+
+            <button onClick={() => window.location.reload()} className="w-full md:w-auto bg-[#003781] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#002860] shadow-lg transition-all">
               กลับสู่หน้าหลัก
             </button>
           </div>
@@ -283,78 +332,116 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: ADMIN DASHBOARD */}
+        {/* VIEW: ADMIN DASHBOARD (Responsive & Feature Rich) */}
         {view === 'admin' && (
           <div className="animate-fade-in">
-             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-               <h2 className="text-2xl font-bold flex items-center gap-2 text-gray-900">
-                 <Database className="text-[#003781]"/> ระบบจัดการหลังบ้าน
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+               <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2 text-gray-900">
+                 <Database className="text-[#003781]"/> ระบบหลังบ้าน
                </h2>
-               <div className="flex gap-2">
-                 <button onClick={() => setView('home')} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">ไปหน้าเว็บ</button>
-                 <button onClick={() => setView('home')} className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg flex items-center gap-2"><LogOut size={16}/> ออกจากระบบ</button>
+               <div className="flex gap-2 w-full md:w-auto">
+                 <button onClick={() => setView('home')} className="flex-1 md:flex-none justify-center px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200">ดูหน้าเว็บ</button>
+                 <button onClick={() => setView('home')} className="flex-1 md:flex-none justify-center px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg flex items-center gap-2"><LogOut size={16}/> ออก</button>
                </div>
              </div>
 
-             <div className="flex gap-2 mb-6 border-b overflow-x-auto pb-1">
-               <button onClick={() => setAdminTab('orders')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap ${adminTab === 'orders' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>📦 รายการออเดอร์ ({orders.length})</button>
-               <button onClick={() => setAdminTab('products')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap ${adminTab === 'products' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🛍️ จัดการสินค้า</button>
-               <button onClick={() => setAdminTab('settings')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap ${adminTab === 'settings' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🖼️ ตั้งค่าแบนเนอร์</button>
+             <div className="flex gap-1 md:gap-2 mb-6 border-b overflow-x-auto pb-1 no-scrollbar">
+               <button onClick={() => setAdminTab('orders')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'orders' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>📦 ออเดอร์ ({orders.length})</button>
+               <button onClick={() => setAdminTab('products')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'products' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🛍️ สินค้า</button>
+               <button onClick={() => setAdminTab('settings')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'settings' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🖼️ ตั้งค่าเว็บ</button>
              </div>
              
-             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 min-h-[400px]">
+             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6 min-h-[400px]">
                
-               {/* TAB: ORDERS */}
+               {/* TAB: ORDERS (With Edit/Delete) */}
                {adminTab === 'orders' && (
-                 <div className="overflow-x-auto">
-                   <table className="w-full text-left text-sm">
-                     <thead className="bg-gray-50 text-gray-700 font-bold border-b">
-                       <tr>
-                         <th className="p-3">วันที่</th>
-                         <th className="p-3">ชื่อลูกค้า</th>
-                         <th className="p-3">เบอร์โทร</th>
-                         <th className="p-3">สินค้า</th>
-                         <th className="p-3">ที่อยู่</th>
-                       </tr>
-                     </thead>
-                     <tbody className="divide-y">
-                       {orders.map((order) => (
-                         <tr key={order.id} className="hover:bg-gray-50 text-gray-800">
-                           <td className="p-3 text-gray-500 whitespace-nowrap">{order.timestamp?.toDate().toLocaleDateString('th-TH')}</td>
-                           <td className="p-3 font-medium text-[#003781]">{order.name}</td>
-                           <td className="p-3">{order.phone}</td>
-                           <td className="p-3"><span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-xs">{order.product}</span></td>
-                           <td className="p-3 text-gray-600 min-w-[200px]">{order.address}</td>
+                 <div>
+                    {/* Modal แก้ไขออเดอร์ */}
+                    {editingOrder && (
+                      <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl w-full max-w-lg p-6 shadow-2xl animate-slide-up">
+                          <div className="flex justify-between mb-4">
+                             <h3 className="text-xl font-bold">แก้ไขออเดอร์</h3>
+                             <button onClick={() => setEditingOrder(null)}><X className="text-gray-400 hover:text-red-500"/></button>
+                          </div>
+                          <form onSubmit={handleSaveOrder} className="space-y-3">
+                            <div><label className="text-xs text-gray-500">ชื่อลูกค้า</label>
+                            <input required className="w-full p-2 border rounded text-gray-900" value={editingOrder.name} onChange={e => setEditingOrder({...editingOrder, name: e.target.value})} /></div>
+                            <div><label className="text-xs text-gray-500">เบอร์โทร</label>
+                            <input required className="w-full p-2 border rounded text-gray-900" value={editingOrder.phone} onChange={e => setEditingOrder({...editingOrder, phone: e.target.value})} /></div>
+                            <div><label className="text-xs text-gray-500">ที่อยู่</label>
+                            <textarea required rows={3} className="w-full p-2 border rounded text-gray-900" value={editingOrder.address} onChange={e => setEditingOrder({...editingOrder, address: e.target.value})} /></div>
+                            
+                            <div className="pt-2 flex gap-3">
+                              <button type="submit" className="flex-1 bg-[#003781] text-white py-2 rounded-lg font-bold">บันทึก</button>
+                            </div>
+                          </form>
+                        </div>
+                      </div>
+                    )}
+
+                   {/* ตารางแบบเลื่อนได้ (Responsive) */}
+                   <div className="overflow-x-auto">
+                     <table className="w-full text-left text-sm min-w-[800px]">
+                       <thead className="bg-gray-50 text-gray-700 font-bold border-b">
+                         <tr>
+                           <th className="p-3 w-32">วันที่</th>
+                           <th className="p-3 w-40">ลูกค้า</th>
+                           <th className="p-3 w-32">เบอร์โทร</th>
+                           <th className="p-3 w-40">สินค้า</th>
+                           <th className="p-3">ที่อยู่</th>
+                           <th className="p-3 w-24 text-center">จัดการ</th>
                          </tr>
-                       ))}
-                     </tbody>
-                   </table>
-                   {orders.length === 0 && <div className="p-10 text-center text-gray-400">ยังไม่มีรายการสั่งซื้อ</div>}
+                       </thead>
+                       <tbody className="divide-y">
+                         {orders.map((order) => (
+                           <tr key={order.id} className="hover:bg-gray-50 text-gray-800">
+                             <td className="p-3 text-gray-500 whitespace-nowrap">{order.timestamp?.toDate().toLocaleDateString('th-TH')}</td>
+                             <td className="p-3 font-medium text-[#003781]">{order.name}</td>
+                             <td className="p-3">{order.phone}</td>
+                             <td className="p-3"><span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-xs">{order.product}</span></td>
+                             <td className="p-3 text-gray-600 min-w-[200px] text-xs">{order.address}</td>
+                             <td className="p-3 text-center flex gap-1 justify-center">
+                               <button onClick={() => setEditingOrder(order)} className="p-1.5 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"><Edit size={14}/></button>
+                               <button onClick={() => handleDeleteOrder(order.id)} className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200"><Trash2 size={14}/></button>
+                             </td>
+                           </tr>
+                         ))}
+                       </tbody>
+                     </table>
+                     {orders.length === 0 && <div className="p-10 text-center text-gray-400 flex flex-col items-center gap-2"><Package size={40}/> ยังไม่มีรายการสั่งซื้อ</div>}
+                   </div>
                  </div>
                )}
 
-               {/* TAB: PRODUCTS (CMS) */}
+               {/* TAB: PRODUCTS */}
                {adminTab === 'products' && (
                  <div>
-                    <div className="flex justify-between mb-4">
-                      <h3 className="font-bold text-lg">รายการสินค้าทั้งหมด</h3>
-                      <button onClick={() => setEditingProduct({})} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-green-700">
+                    <div className="flex flex-col md:flex-row justify-between mb-4 gap-3">
+                      <h3 className="font-bold text-lg">จัดการสินค้า</h3>
+                      <button onClick={() => setEditingProduct({})} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-700 w-full md:w-auto">
                         <Plus size={16}/> เพิ่มสินค้าใหม่
                       </button>
                     </div>
 
-                    {/* Modal แก้ไขสินค้า */}
+                    {/* Modal สินค้า */}
                     {editingProduct && (
                       <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl w-full max-w-lg p-6 shadow-2xl animate-slide-up">
-                          <h3 className="text-xl font-bold mb-4">{editingProduct.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h3>
+                        <div className="bg-white rounded-xl w-full max-w-lg p-6 shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
+                           <div className="flex justify-between mb-4">
+                             <h3 className="text-xl font-bold">{editingProduct.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h3>
+                             <button onClick={() => setEditingProduct(null)}><X className="text-gray-400 hover:text-red-500"/></button>
+                           </div>
                           <form onSubmit={handleSaveProduct} className="space-y-3">
-                            <input required placeholder="ชื่อสินค้า" className="w-full p-2 border rounded text-gray-900" value={editingProduct.name || ''} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} />
-                            <input required placeholder="รายละเอียด (สั้นๆ)" className="w-full p-2 border rounded text-gray-900" value={editingProduct.description || ''} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} />
-                            <input required placeholder="ลิงก์รูปภาพ (URL)" className="w-full p-2 border rounded text-gray-900" value={editingProduct.imageUrl || ''} onChange={e => setEditingProduct({...editingProduct, imageUrl: e.target.value})} />
-                            <div className="flex gap-3 mt-4">
+                            <div><label className="text-xs text-gray-500">ชื่อสินค้า</label>
+                            <input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.name || ''} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} /></div>
+                            <div><label className="text-xs text-gray-500">รายละเอียด</label>
+                            <input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.description || ''} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} /></div>
+                            <div><label className="text-xs text-gray-500">ลิงก์รูปภาพ (URL)</label>
+                            <input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.imageUrl || ''} onChange={e => setEditingProduct({...editingProduct, imageUrl: e.target.value})} /></div>
+                            
+                            <div className="pt-2 flex gap-3">
                               <button type="submit" className="flex-1 bg-[#003781] text-white py-2 rounded-lg font-bold">บันทึก</button>
-                              <button type="button" onClick={() => setEditingProduct(null)} className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg">ยกเลิก</button>
                             </div>
                           </form>
                         </div>
@@ -363,18 +450,18 @@ export default function App() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {products.map(p => (
-                        <div key={p.id} className={`border rounded-xl p-4 flex gap-4 items-center ${!p.active ? 'opacity-50 bg-gray-100' : 'bg-white'}`}>
-                          <img src={p.imageUrl} className="w-16 h-16 rounded object-cover bg-gray-200"/>
-                          <div className="flex-grow">
-                            <div className="font-bold text-gray-900">{p.name}</div>
-                            <div className="text-xs text-gray-500">{p.active ? '🟢 แสดงอยู่' : '🔴 ซ่อนอยู่'}</div>
-                          </div>
-                          <div className="flex gap-2">
-                             <button onClick={() => handleToggleProduct(p)} className="p-2 bg-gray-100 rounded hover:bg-gray-200 text-gray-600" title={p.active ? "ซ่อน" : "แสดง"}>
-                               {p.active ? <Eye size={16}/> : <EyeOff size={16}/>}
-                             </button>
-                             <button onClick={() => setEditingProduct(p)} className="p-2 bg-blue-50 rounded hover:bg-blue-100 text-blue-600"><Edit size={16}/></button>
-                             <button onClick={() => handleDeleteProduct(p.id)} className="p-2 bg-red-50 rounded hover:bg-red-100 text-red-600"><Trash2 size={16}/></button>
+                        <div key={p.id} className={`border rounded-xl p-4 flex gap-4 items-start ${!p.active ? 'opacity-60 bg-gray-100' : 'bg-white'}`}>
+                          <img src={p.imageUrl} className="w-16 h-16 rounded object-cover bg-gray-200 flex-shrink-0"/>
+                          <div className="flex-grow min-w-0">
+                            <div className="font-bold text-gray-900 truncate">{p.name}</div>
+                            <div className="text-xs text-gray-500 mb-2 truncate">{p.description}</div>
+                            <div className="flex gap-2">
+                               <button onClick={() => handleToggleProduct(p)} className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${p.active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
+                                 {p.active ? <><Eye size={12}/> แสดง</> : <><EyeOff size={12}/> ซ่อน</>}
+                               </button>
+                               <button onClick={() => setEditingProduct(p)} className="px-2 py-1 bg-blue-50 rounded text-xs text-blue-600 flex items-center gap-1"><Edit size={12}/> แก้ไข</button>
+                               <button onClick={() => handleDeleteProduct(p.id)} className="px-2 py-1 bg-red-50 rounded text-xs text-red-600 flex items-center gap-1"><Trash2 size={12}/> ลบ</button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -382,22 +469,42 @@ export default function App() {
                  </div>
                )}
 
-               {/* TAB: SETTINGS (BANNER) */}
+               {/* TAB: SETTINGS (Editable Texts!) */}
                {adminTab === 'settings' && (
                  <div className="max-w-xl">
-                   <h3 className="font-bold text-lg mb-4">ตั้งค่าหน้าเว็บ</h3>
-                   <div className="mb-4">
-                     <label className="block text-sm font-medium text-gray-700 mb-2">ลิงก์รูปแบนเนอร์ (URL)</label>
-                     <div className="flex gap-2">
-                       <input className="flex-grow p-3 border rounded-xl text-gray-900" value={bannerUrl} onChange={e => setBannerUrl(e.target.value)} />
-                       <button onClick={handleSaveBanner} className="bg-[#003781] text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2">
-                         <Save size={18}/> บันทึก
-                       </button>
+                   <h3 className="font-bold text-lg mb-4 border-b pb-2">ตั้งค่าหน้าเว็บ</h3>
+                   
+                   <div className="space-y-4">
+                     <div>
+                       <label className="block text-sm font-bold text-gray-700 mb-1">หัวข้อหลัก (Banner Title)</label>
+                       <textarea rows={2} className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.title} onChange={e => setBannerSettings({...bannerSettings, title: e.target.value})} />
                      </div>
+                     
+                     <div>
+                       <label className="block text-sm font-bold text-gray-700 mb-1">ข้อความรอง (Subtitle / Badge)</label>
+                       <input className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.subtitle} onChange={e => setBannerSettings({...bannerSettings, subtitle: e.target.value})} />
+                     </div>
+
+                     <div>
+                       <label className="block text-sm font-bold text-gray-700 mb-1">ลิงก์รูปภาพ (Banner Image URL)</label>
+                       <input className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.bannerUrl} onChange={e => setBannerSettings({...bannerSettings, bannerUrl: e.target.value})} />
+                       <p className="text-xs text-gray-400 mt-1">แนะนำ: ใช้รูปแนวนอน ขนาด 1200px ขึ้นไป (ฝากรูปที่ imgur.com แล้วนำลิงก์มาใส่)</p>
+                     </div>
+
+                     <button onClick={handleSaveBanner} className="bg-[#003781] hover:bg-[#002860] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all w-full justify-center md:w-auto">
+                       <Save size={18}/> บันทึกการตั้งค่า
+                     </button>
                    </div>
-                   <div className="mt-4">
-                     <p className="text-sm text-gray-500 mb-2">ตัวอย่างรูปปัจจุบัน:</p>
-                     <img src={bannerUrl} className="w-full h-40 object-cover rounded-xl shadow-md" />
+
+                   <div className="mt-8 border-t pt-6">
+                     <p className="text-sm font-bold text-gray-700 mb-3">ตัวอย่างรูปปัจจุบัน:</p>
+                     <div className="relative rounded-xl overflow-hidden shadow-md h-40">
+                       <img src={bannerSettings.bannerUrl} className="w-full h-full object-cover" />
+                       <div className="absolute bottom-4 left-4 text-white">
+                          <span className="text-xs bg-white/20 px-2 py-0.5 rounded backdrop-blur border border-white/30">{bannerSettings.subtitle}</span>
+                          <div className="font-bold text-lg leading-tight mt-1">{bannerSettings.title}</div>
+                       </div>
+                     </div>
                    </div>
                  </div>
                )}
