@@ -29,7 +29,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
   
-  // แก้ไข: เอา email ออก และเพิ่ม remark เข้ามา
   const [formData, setFormData] = useState({ name: '', phone: '', address: '', pickupDate: '', remark: '' }); 
   const [finalDeliveryMethod, setFinalDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
   
@@ -39,6 +38,19 @@ export default function App() {
   const [adminTab, setAdminTab] = useState('orders'); 
   const [editingProduct, setEditingProduct] = useState<any>(null); 
   const [editingOrder, setEditingOrder] = useState<any>(null);
+
+  // --- FIX 1: บังคับตั้งค่า Viewport ให้พอดีมือถือ (แก้ปัญหาหน้าจอไม่พอดี/ต้องซูม) ---
+  useEffect(() => {
+    // โค้ดนี้จะทำงานทันทีที่เปิดเว็บ เพื่อเช็คว่ามี meta viewport หรือยัง
+    let meta = document.querySelector("meta[name=viewport]");
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute("name", "viewport");
+      document.head.appendChild(meta);
+    }
+    // ตั้งค่าให้กว้างเท่าอุปกรณ์ ห้ามซูม และสเกลเริ่มต้น 1.0
+    meta.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no");
+  }, []);
 
   // --- 1. โหลดข้อมูล ---
   useEffect(() => {
@@ -224,14 +236,13 @@ export default function App() {
                <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
             </div>
 
-            {/* Grid System - ปรับ Mobile ให้เป็น 2 คอลัมน์ (grid-cols-2) */}
+            {/* Grid System - Mobile: 2 Columns */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8 w-full">
               {products.filter(p => p.active).map((p) => (
                 <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full">
                   <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100">
                     <img src={p.imageUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/> 
                   </div>
-                  {/* ปรับ Padding และขนาดตัวหนังสือให้เล็กลงสำหรับ Mobile */}
                   <div className="p-3 md:p-5 flex flex-col flex-grow">
                     <h3 className="font-bold text-sm md:text-xl text-gray-900 mb-1 md:mb-2 line-clamp-1">{p.name}</h3>
                     <p className="text-gray-500 text-xs md:text-sm mb-3 md:mb-4 flex-grow line-clamp-2">{p.description}</p>
@@ -309,7 +320,7 @@ export default function App() {
                           </div>
                       </div>
 
-                      {/* ย้าย Address ขึ้นมาไว้ตรงนี้ (ตัด Email ออกแล้ว) */}
+                      {/* Address Field */}
                       <div>
                         <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                           <MapPin size={18} className="text-[#003781]"/> 
@@ -330,9 +341,9 @@ export default function App() {
                         </p>
                       </div>
 
-                      {/* Pickup Date / Remark : สลับเอา Address ขึ้นไปแล้ว เอา Remark มาแทนที่ Dummy */}
+                      {/* FIX 2: ใช้ Dummy Box ล่องหน (Opacity 0) สลับกับกล่องวันที่ เพื่อให้ความสูงเท่ากันเป๊ะ 100% ไม่กระโดด */}
                       {deliveryMethod === 'pickup' ? (
-                        // 1. กล่องเลือกวัน (นัดรับ)
+                        // 1. กล่องเลือกวัน (นัดรับ) - ของจริง
                         <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 w-full animate-fade-in">
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
                             <Calendar size={18} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
@@ -350,23 +361,31 @@ export default function App() {
                           </div>
                         </div>
                       ) : (
-                        // 2. กล่อง Remark (จัดส่ง) - ใช้พื้นที่แทน Dummy เดิม
-                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 w-full animate-fade-in">
-                          <label className="flex items-center gap-2 text-sm font-bold text-gray-600 mb-2">
-                            <FileText size={18} /> หมายเหตุ (ถ้ามี)
+                        // 2. กล่องล่องหน (Dummy Box) - มองไม่เห็น แต่กินพื้นที่เท่ากันเป๊ะ
+                        <div className="bg-transparent p-4 rounded-xl border border-transparent w-full opacity-0 pointer-events-none select-none" aria-hidden="true">
+                          <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
+                            <Calendar size={18} /> เลือกวันและเวลานัดรับ
                           </label>
-                          <input 
-                            className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base"
-                            placeholder="ฝากข้อความถึงผู้ส่ง (ไม่ระบุก็ได้)"
-                            value={formData.remark}
-                            onChange={e => setFormData({...formData, remark: e.target.value})}
-                          />
-                           <div className="flex gap-2 mt-3 text-gray-400 text-xs md:text-sm items-start p-3">
-                           <div className="font-bold whitespace-nowrap"></div>
-                            <div>&nbsp;</div>
+                          <div className="w-full px-4 py-3 rounded-xl border border-transparent text-base">dummy input</div>
+                          <div className="flex gap-2 mt-3 text-xs md:text-sm items-start p-3 rounded-lg border border-transparent">
+                           <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
+                            <div>ทางตัวแทนจะ confirm วันเวลาที่คุณเลือกมาอีกครั้งใน Line OA ต่อไป</div>
                           </div>
                         </div>
                       )}
+                      
+                      {/* Remark Field - วางแยกออกมาถาวรด้านล่างสุด ไม่ให้กระทบ layout ข้างบน */}
+                      <div className="w-full">
+                        <label className="flex items-center gap-2 text-sm font-bold text-gray-600 mb-2">
+                          <FileText size={18} /> หมายเหตุ (ถ้ามี)
+                        </label>
+                        <input 
+                          className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base"
+                          placeholder="ฝากข้อความถึงผู้ส่ง (ไม่ระบุก็ได้)"
+                          value={formData.remark}
+                          onChange={e => setFormData({...formData, remark: e.target.value})}
+                        />
+                      </div>
 
                   </div>
 
@@ -420,10 +439,9 @@ export default function App() {
                         <span className="font-bold text-right">{formData.phone}</span>
                       </div>
                       
-                      {/* เพิ่มแสดงที่อยู่ในหน้า Summary */}
                       <div className="flex justify-between items-start">
                         <span className="text-gray-500 whitespace-nowrap">ที่อยู่/นัดรับ:</span>
-                        <span className="font-bold text-right ml-4">{formData.address}</span>
+                        <span className="font-bold text-right ml-4 text-xs md:text-base">{formData.address}</span>
                       </div>
 
                       {finalDeliveryMethod === 'pickup' && (
