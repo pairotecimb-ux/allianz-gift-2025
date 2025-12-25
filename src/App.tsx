@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Mail, Send } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt } from 'lucide-react';
 import { db } from './firebase';
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
@@ -166,49 +166,52 @@ export default function App() {
   };
 
   const Footer = () => (
-    <footer className="mt-auto py-8 bg-white border-t border-gray-200 text-center px-4">
-      <p className="text-gray-600 text-sm md:text-base">
-        © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-        <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v3.0</span>
-      </p>
+    <footer className="w-full bg-white border-t border-gray-200 py-6 text-center mt-auto">
+      <div className="container mx-auto px-4">
+        <p className="text-gray-600 text-sm md:text-base">
+          © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
+          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v4.0 (Final)</span>
+        </p>
+      </div>
     </footer>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col w-full">
       
       {/* Navbar */}
-      <div className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+      <div className="bg-white shadow-sm sticky top-0 z-50 w-full">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div onClick={() => setView('home')} className="cursor-pointer text-[#003781] font-bold text-xl md:text-2xl flex items-center gap-2">
             Allianz <span className="text-gray-400 font-light">Ayudhya</span>
           </div>
           {view !== 'admin' && view !== 'login' && (
             <button onClick={() => setView('login')} className="text-gray-300 hover:text-[#003781] p-2">
-              <Lock size={18} />
+              <Lock size={20} />
             </button>
           )}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className={`flex-grow w-full max-w-7xl mx-auto ${view === 'form' || view === 'success' ? 'px-0 md:px-4' : 'px-4 sm:px-6 lg:px-8'} py-4 md:py-6`}>
+      {/* Main Content - ใช้ w-full และ container ในการคุม Layout */}
+      <div className="flex-grow w-full py-6">
+        <div className="container mx-auto px-4 md:px-6">
         
         {/* VIEW: HOME */}
         {view === 'home' && (
-           <div className="animate-fade-in">
-            {/* Banner */}
-            <div className="relative w-full h-64 sm:h-80 md:h-[400px] rounded-2xl overflow-hidden shadow-xl mb-8 md:mb-12 group">
+           <div className="animate-fade-in w-full">
+            {/* Banner - Responsive Height & Width */}
+            <div className="relative w-full aspect-[21/9] min-h-[200px] max-h-[400px] rounded-2xl overflow-hidden shadow-xl mb-8 md:mb-12 group">
               <img src={bannerSettings.bannerUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="Banner"/>
-              <div className="absolute inset-0 bg-gradient-to-r from-[#003781]/95 via-[#003781]/70 to-transparent flex items-center p-6 sm:p-10 md:p-16">
-                 <div className="text-white max-w-xl md:max-w-2xl">
-                    <span className="bg-white/20 backdrop-blur text-xs md:text-sm px-3 py-1 rounded-full mb-3 md:mb-4 inline-block border border-white/30 shadow-sm">
+              <div className="absolute inset-0 bg-gradient-to-r from-[#003781]/95 via-[#003781]/70 to-transparent flex items-center p-6 md:p-12">
+                 <div className="text-white w-full max-w-xl">
+                    <span className="bg-white/20 backdrop-blur text-xs md:text-sm px-3 py-1 rounded-full mb-3 inline-block border border-white/30 shadow-sm">
                       {bannerSettings.subtitle}
                     </span>
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 leading-tight drop-shadow-lg whitespace-pre-line">
+                    <h1 className="text-2xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight drop-shadow-lg whitespace-pre-line">
                       {bannerSettings.title}
                     </h1>
-                    <button onClick={() => document.getElementById('products-grid')?.scrollIntoView({behavior:'smooth'})} className="bg-white text-[#003781] px-6 py-3 rounded-xl text-sm md:text-base font-bold shadow-lg hover:bg-blue-50 transition active:scale-95">
+                    <button onClick={() => document.getElementById('products-grid')?.scrollIntoView({behavior:'smooth'})} className="bg-white text-[#003781] px-5 py-2 md:px-6 md:py-3 rounded-xl text-sm md:text-base font-bold shadow-lg hover:bg-blue-50 transition active:scale-95">
                       เลือกของขวัญ
                     </button>
                  </div>
@@ -219,17 +222,17 @@ export default function App() {
                <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
             </div>
 
-            {/* Grid System */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
+            {/* Grid System - Responsive 100% */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 w-full">
               {products.filter(p => p.active).map((p) => (
-                <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col h-full">
-                  <div className="h-56 sm:h-64 overflow-hidden relative bg-gray-100">
+                <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full">
+                  <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100">
                     <img src={p.imageUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/>
                   </div>
-                  <div className="p-6 flex flex-col flex-grow">
+                  <div className="p-5 flex flex-col flex-grow">
                     <h3 className="font-bold text-lg md:text-xl text-gray-900 mb-2 line-clamp-1">{p.name}</h3>
                     <p className="text-gray-500 text-sm mb-4 flex-grow line-clamp-2">{p.description}</p>
-                    <button onClick={() => { setSelectedProduct(p); setView('form'); }} className="w-full bg-[#003781] text-white py-3.5 rounded-xl font-bold text-base shadow-blue-900/10 hover:bg-[#002860] hover:shadow-lg transition-all active:scale-95">
+                    <button onClick={() => { setSelectedProduct(p); setView('form'); }} className="w-full bg-[#003781] text-white py-3 rounded-xl font-bold text-base shadow-blue-900/10 hover:bg-[#002860] hover:shadow-lg transition-all active:scale-95">
                       แลกรับสิทธิ์
                     </button>
                   </div>
@@ -239,125 +242,125 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (FIXED SIZE - แก้ไขให้เท่ากันทุกโหมด) */}
+        {/* VIEW: FORM (100% Width & Responsive Layout) */}
         {view === 'form' && selectedProduct && (
-          // w-full max-w-3xl และ min-h ทำให้กล่องมีขนาดคงที่
-          <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
-            <div className="px-4 md:px-0">
-               <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
-                 <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
-               </button>
-            </div>
+          <div className="w-full max-w-4xl mx-auto animate-slide-up pb-10">
+            <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
+              <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
+            </button>
             
-            <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0">
+            <div className="bg-white rounded-xl md:rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
               {/* Product Header */}
-              <div className="bg-blue-50/50 p-4 md:p-8 border-b flex flex-row gap-4 md:gap-6 items-center">
-                 <img src={selectedProduct.imageUrl} className="w-24 h-24 md:w-32 md:h-32 rounded-xl object-cover shadow-md bg-white border-2 border-white flex-shrink-0" />
-                 <div>
+              <div className="bg-blue-50/50 p-4 md:p-8 border-b flex flex-col sm:flex-row gap-4 md:gap-6 items-center sm:items-start text-center sm:text-left">
+                 <img src={selectedProduct.imageUrl} className="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md bg-white border-4 border-white flex-shrink-0" />
+                 <div className="w-full">
                    <div className="text-[#003781] text-xs md:text-sm font-bold uppercase mb-1 tracking-wide">ของขวัญที่คุณเลือก</div>
-                   <h2 className="text-lg md:text-2xl font-bold text-gray-900 leading-tight mb-1">{selectedProduct.name}</h2>
-                   <p className="text-gray-600 text-sm md:text-base line-clamp-2">{selectedProduct.description}</p>
+                   <h2 className="text-xl md:text-3xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h2>
+                   <p className="text-gray-600 text-sm md:text-base">{selectedProduct.description}</p>
                  </div>
               </div>
 
-              <div className="p-4 md:p-10">
-                <form onSubmit={handleSubmitOrder} className="space-y-4 md:space-y-6">
+              <div className="p-4 md:p-10 w-full">
+                <form onSubmit={handleSubmitOrder} className="space-y-6 w-full">
                   
-                  {/* Delivery Method Toggle - Fix Height */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2 md:mb-3">เลือกวิธีการรับของขวัญ</label>
-                    <div className="grid grid-cols-2 gap-3 md:gap-4 h-24 md:h-28">
+                  {/* Delivery Method Toggle - Equal Size */}
+                  <div className="w-full">
+                    <label className="block text-sm font-bold text-gray-700 mb-3">เลือกวิธีการรับของขวัญ</label>
+                    <div className="grid grid-cols-2 gap-3 md:gap-6">
                       <div 
                         onClick={() => setDeliveryMethod('delivery')}
-                        className={`cursor-pointer rounded-xl p-2 md:p-4 border-2 flex flex-col items-center justify-center gap-1 md:gap-2 transition-all h-full ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                        className={`cursor-pointer rounded-xl p-4 md:p-6 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[120px] ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                       >
-                        <Truck size={24} className="md:w-8 md:h-8" />
-                        <span className="font-bold text-sm md:text-base text-center">จัดส่งถึงบ้าน</span>
+                        <Truck size={32} className="mb-1" />
+                        <span className="font-bold text-sm md:text-lg text-center">จัดส่งถึงบ้าน</span>
                       </div>
                       <div 
                         onClick={() => setDeliveryMethod('pickup')}
-                        className={`cursor-pointer rounded-xl p-2 md:p-4 border-2 flex flex-col items-center justify-center gap-1 md:gap-2 transition-all h-full ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                        className={`cursor-pointer rounded-xl p-4 md:p-6 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[120px] ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                       >
-                        <Handshake size={24} className="md:w-8 md:h-8" />
-                        <span className="font-bold text-sm md:text-base text-center">สะดวกนัดรับ</span>
+                        <Handshake size={32} className="mb-1" />
+                        <span className="font-bold text-sm md:text-lg text-center">สะดวกนัดรับ</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Info Fields - Grid Layout */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                  {/* Input Fields Container */}
+                  <div className="w-full space-y-4 md:space-y-6">
+                      {/* Name & Phone Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 w-full">
+                          <div>
+                              <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                              <User size={18} className="text-[#003781]"/> ชื่อ-นามสกุล
+                              </label>
+                              <input required className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
+                              placeholder="ระบุชื่อจริง นามสกุล" 
+                              value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                          </div>
+
+                          <div>
+                              <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                              <Phone size={18} className="text-[#003781]"/> เบอร์โทรศัพท์
+                              </label>
+                              <input required type="tel" className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
+                              placeholder="เช่น 0891234567" 
+                              value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                          </div>
+                      </div>
+
+                      {/* Email */}
                       <div>
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                          <User size={16} className="text-[#003781]"/> ชื่อ-นามสกุล
+                          <TiltedMailIcon size={18} /> อีเมล (สำหรับรับข้อมูล)
                           </label>
-                          <input required className="w-full px-3 py-3 md:px-4 md:py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-sm md:text-base" 
-                          placeholder="ระบุชื่อจริง นามสกุล" 
-                          value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                          <input required type="email" className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
+                          placeholder="example@mail.com" 
+                          value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                       </div>
 
+                      {/* Pickup Date */}
+                      {deliveryMethod === 'pickup' && (
+                        <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 animate-fade-in w-full">
+                          <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
+                            <Calendar size={18} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
+                          </label>
+                          <input 
+                            required 
+                            type="datetime-local" 
+                            className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base"
+                            value={formData.pickupDate}
+                            onChange={e => setFormData({...formData, pickupDate: e.target.value})}
+                          />
+                          <div className="flex gap-2 mt-3 text-red-600 text-xs md:text-sm items-start bg-white p-3 rounded-lg border border-red-100">
+                            <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
+                            <div>ทางตัวแทนจะ confirm วันเวลาที่คุณเลือกมาอีกครั้งใน Line OA ต่อไป</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Address */}
                       <div>
-                          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                          <Phone size={16} className="text-[#003781]"/> เบอร์โทรศัพท์
-                          </label>
-                          <input required type="tel" className="w-full px-3 py-3 md:px-4 md:py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-sm md:text-base" 
-                          placeholder="เช่น 0891234567" 
-                          value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                        <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                          <MapPin size={18} className="text-[#003781]"/> 
+                          {deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'ระบุสถานที่นัดรับ'}
+                        </label>
+                        <textarea 
+                          required 
+                          rows={4} 
+                          className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base resize-none leading-relaxed" 
+                          placeholder={deliveryMethod === 'delivery' 
+                            ? "บ้านเลขที่, หมู่บ้าน/คอนโด, ซอย, ถนน\nแขวง/ตำบล, เขต/อำเภอ\nจังหวัด, รหัสไปรษณีย์" 
+                            : "ระบุจุดนัดพบให้ชัดเจน เช่น \n- BTS สยาม ทางออก 1\n- เซ็นทรัลลาดพร้าว หน้า Uniqlo\n- บ้านเลขที่... (บ้านตัวแทน/ลูกค้า)"}
+                          value={formData.address} 
+                          onChange={e => setFormData({...formData, address: e.target.value})} 
+                        />
+                        <p className="text-xs text-gray-400 mt-2 text-right">
+                          {deliveryMethod === 'delivery' ? '*กรุณาระบุให้ครบถ้วนเพื่อความรวดเร็วในการจัดส่ง' : '*เจ้าหน้าที่จะติดต่อนัดหมายเวลาอีกครั้ง'}
+                        </p>
                       </div>
                   </div>
 
-                  {/* อีเมล - Full Width */}
-                  <div>
-                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                      <Mail size={16} className="text-[#003781]"/> อีเมล (สำหรับรับยืนยัน)
-                      </label>
-                      <input required type="email" className="w-full px-3 py-3 md:px-4 md:py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-sm md:text-base" 
-                      placeholder="example@mail.com" 
-                      value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                  </div>
-
-                  {/* Date Picker (Specific for Pickup) - แต่เราจะใช้ min-h เพื่อกันกล่องกระตุก */}
-                  {deliveryMethod === 'pickup' && (
-                    <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 animate-fade-in">
-                      <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
-                        <Calendar size={16} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
-                      </label>
-                      <input 
-                        required 
-                        type="datetime-local" 
-                        className="w-full px-3 py-3 md:px-4 md:py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-sm md:text-base"
-                        value={formData.pickupDate}
-                        onChange={e => setFormData({...formData, pickupDate: e.target.value})}
-                      />
-                      <div className="flex gap-2 mt-3 text-red-600 text-xs md:text-sm items-start bg-white p-3 rounded-lg border border-red-100">
-                        <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
-                        <div>ทางตัวแทนจะ confirm วันเวลาที่คุณเลือกมาอีกครั้งใน Line OA ต่อไป</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ที่อยู่ / จุดนัดรับ */}
-                  <div>
-                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                      <MapPin size={16} className="text-[#003781]"/> 
-                      {deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'ระบุสถานที่นัดรับ'}
-                    </label>
-                    <textarea 
-                      required 
-                      rows={4} 
-                      className="w-full px-3 py-3 md:px-4 md:py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-sm md:text-base resize-none leading-relaxed" 
-                      placeholder={deliveryMethod === 'delivery' 
-                        ? "บ้านเลขที่, หมู่บ้าน/คอนโด, ซอย, ถนน\nแขวง/ตำบล, เขต/อำเภอ\nจังหวัด, รหัสไปรษณีย์" 
-                        : "ระบุจุดนัดพบให้ชัดเจน เช่น \n- BTS สยาม ทางออก 1\n- เซ็นทรัลลาดพร้าว หน้า Uniqlo\n- บ้านเลขที่... (บ้านตัวแทน/ลูกค้า)"}
-                      value={formData.address} 
-                      onChange={e => setFormData({...formData, address: e.target.value})} 
-                    />
-                    <p className="text-xs text-gray-400 mt-2 text-right">
-                      {deliveryMethod === 'delivery' ? '*กรุณาระบุให้ครบถ้วนเพื่อความรวดเร็วในการจัดส่ง' : '*เจ้าหน้าที่จะติดต่อนัดหมายเวลาอีกครั้ง'}
-                    </p>
-                  </div>
-
-                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-3.5 md:py-4 rounded-xl font-bold text-base md:text-lg shadow-lg transition-all mt-4 md:mt-8 active:scale-95 flex items-center justify-center gap-3">
-                    {loading ? 'กำลังบันทึก...' : <><CheckCircle size={20}/> ยืนยันการรับสิทธิ์</>}
+                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-8 active:scale-95 flex items-center justify-center gap-3">
+                    {loading ? 'กำลังบันทึก...' : <><CheckCircle size={24}/> ยืนยันการรับสิทธิ์</>}
                   </button>
                 </form>
               </div>
@@ -365,17 +368,17 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: SUCCESS (FIXED WIDTH MATCHING FORM) */}
+        {/* VIEW: SUCCESS (Summary Ticket instead of Email) */}
         {view === 'success' && (
-          <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
-             <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0 p-6 md:p-12 flex flex-col items-center justify-center text-center">
-                <div className="w-20 h-20 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mb-6 md:mb-8">
-                  <CheckCircle className="text-green-600 w-10 h-10 md:w-14 md:h-14" />
+          <div className="w-full max-w-2xl mx-auto animate-slide-up pb-10">
+             <div className="bg-white rounded-xl md:rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full p-6 md:p-10 flex flex-col items-center justify-center text-center">
+                <div className="w-20 h-20 md:w-24 md:h-24 bg-green-100 rounded-full flex items-center justify-center mb-6">
+                  <CheckCircle className="text-green-600 w-10 h-10 md:w-12 md:h-12" />
                 </div>
-                <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-4 md:mb-6">บันทึกข้อมูลสำเร็จ!</h2>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">บันทึกข้อมูลสำเร็จ!</h2>
                 
-                <div className="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 mb-8 md:mb-10 text-center w-full">
-                  <p className="text-[#003781] leading-relaxed text-base md:text-xl font-bold">
+                <div className="bg-blue-50 p-4 md:p-6 rounded-xl border border-blue-100 mb-8 w-full text-center">
+                  <p className="text-[#003781] leading-relaxed text-base md:text-lg font-bold">
                     {finalDeliveryMethod === 'delivery' 
                       ? "ขอบคุณที่ร่วมกิจกรรมกับเรา ทางเราจะจัดส่งของขวัญให้ท่านโดยเร็วที่สุด"
                       : "ขอบคุณที่ร่วมกิจกรรมกับเรา ทางเราจะติดต่อ Confirm วันเวลาสะดวกในการนัดรับของขวัญกับท่านโดยเร็วที่สุด"
@@ -383,34 +386,53 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* EMAIL MOCKUP CARD */}
-                <div className="w-full bg-blue-50 p-4 md:p-6 rounded-xl border border-blue-100 mb-8 text-left relative overflow-hidden shadow-sm">
-                   <div className="flex items-center gap-2 mb-3 border-b border-blue-200 pb-2">
-                      <Mail size={18} className="text-[#003781]"/>
-                      <span className="font-bold text-[#003781] text-sm">ระบบได้ส่งอีเมลยืนยันไปที่:</span>
+                {/* SUMMARY TICKET (แทน Email Mockup) */}
+                <div className="w-full bg-gray-50 rounded-xl border border-dashed border-gray-300 p-6 mb-8 text-left relative">
+                   <div className="flex items-center gap-2 mb-4 border-b border-gray-200 pb-2">
+                      <Receipt size={20} className="text-gray-500"/>
+                      <span className="font-bold text-gray-700 text-lg">สรุปรายการ (Summary)</span>
                    </div>
-                   <div className="text-gray-700 text-sm md:text-base space-y-2">
-                      <div className="font-bold">{formData.email}</div>
-                      <div className="text-xs text-gray-500 italic">(ตัวอย่าง: อีเมลยืนยันการรับสิทธิ์ {selectedProduct.name})</div>
-                   </div>
-                   {/* Decorative Send Icon */}
-                   <div className="absolute right-4 top-4 opacity-10">
-                      <Send size={48} className="text-[#003781]"/>
+                   <div className="space-y-3 text-sm md:text-base text-gray-700">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">สินค้า:</span>
+                        <span className="font-bold text-right">{selectedProduct.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">วิธีรับ:</span>
+                        <span className="font-bold text-right text-[#003781]">{finalDeliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">ชื่อผู้รับ:</span>
+                        <span className="font-bold text-right">{formData.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">เบอร์โทร:</span>
+                        <span className="font-bold text-right">{formData.phone}</span>
+                      </div>
+                      {finalDeliveryMethod === 'pickup' && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">เวลานัดหมาย:</span>
+                          <span className="font-bold text-right text-orange-600">{new Date(formData.pickupDate).toLocaleString('th-TH')}</span>
+                        </div>
+                      )}
+                      <div className="pt-2 border-t border-gray-200 mt-2 text-xs text-gray-400 text-center">
+                        รหัสอ้างอิง: {new Date().getTime().toString().slice(-6)}
+                      </div>
                    </div>
                 </div>
 
-                <div className="w-full max-w-sm space-y-3 md:space-y-4">
+                <div className="w-full max-w-sm space-y-4">
                   <p className="text-gray-500 text-sm">หากมีข้อสงสัยติดต่อ:</p>
                   <a 
                     href="https://line.me/R/ti/p/@386cqgdi" 
                     target="_blank" 
                     rel="noreferrer"
-                    className="flex items-center justify-center gap-3 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3 md:py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-95 text-sm md:text-base"
+                    className="flex items-center justify-center gap-2 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-95 text-base"
                   >
-                    <MessageCircle size={20} />
+                    <MessageCircle size={22} />
                     Line OA นัท อลิอันซ์
                   </a>
-                  <button onClick={() => window.location.reload()} className="w-full bg-gray-100 text-gray-600 hover:text-[#003781] px-10 py-3 md:py-3.5 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm md:text-base">
+                  <button onClick={() => window.location.reload()} className="w-full bg-gray-100 text-gray-600 hover:text-[#003781] px-10 py-3.5 rounded-xl font-bold hover:bg-gray-200 transition-all text-base">
                     กลับสู่หน้าหลัก
                   </button>
                 </div>
@@ -440,28 +462,28 @@ export default function App() {
 
         {/* VIEW: ADMIN DASHBOARD */}
         {view === 'admin' && (
-          <div className="animate-fade-in">
+          <div className="animate-fade-in w-full">
              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2 text-gray-900">
                  <Database className="text-[#003781]"/> ระบบหลังบ้าน
                </h2>
                <div className="flex gap-2 w-full md:w-auto">
-                 <button onClick={() => setView('home')} className="flex-1 md:flex-none justify-center px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200">ดูหน้าเว็บ</button>
-                 <button onClick={() => setView('home')} className="flex-1 md:flex-none justify-center px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg flex items-center gap-2"><LogOut size={16}/> ออก</button>
+                 <button onClick={() => setView('home')} className="flex-1 md:flex-none justify-center px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200 whitespace-nowrap">ดูหน้าเว็บ</button>
+                 <button onClick={() => setView('home')} className="flex-1 md:flex-none justify-center px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg flex items-center gap-2 whitespace-nowrap"><LogOut size={16}/> ออก</button>
                </div>
              </div>
 
-             <div className="flex gap-2 mb-6 border-b overflow-x-auto pb-1 no-scrollbar">
+             <div className="flex gap-2 mb-6 border-b overflow-x-auto pb-1 no-scrollbar w-full">
                <button onClick={() => setAdminTab('orders')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'orders' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>📦 ออเดอร์ ({orders.length})</button>
                <button onClick={() => setAdminTab('products')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'products' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🛍️ สินค้า</button>
                <button onClick={() => setAdminTab('settings')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'settings' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🖼️ ตั้งค่าเว็บ</button>
              </div>
              
-             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6 min-h-[400px]">
+             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6 min-h-[400px] w-full">
                
                {/* TAB: ORDERS */}
                {adminTab === 'orders' && (
-                 <div>
+                 <div className="w-full">
                     {/* Modal แก้ไขออเดอร์ */}
                     {editingOrder && (
                       <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
@@ -487,7 +509,7 @@ export default function App() {
                     )}
 
                    {/* ตารางแบบเลื่อนได้ */}
-                   <div className="overflow-x-auto">
+                   <div className="overflow-x-auto w-full">
                      <table className="w-full text-left text-sm min-w-[800px]">
                        <thead className="bg-gray-50 text-gray-700 font-bold border-b">
                          <tr>
@@ -632,6 +654,7 @@ export default function App() {
           </div>
         )}
 
+        </div>
       </div>
       
       <Footer />
@@ -639,3 +662,8 @@ export default function App() {
     </div>
   );
 }
+
+// Icon for Mail
+const TiltedMailIcon = ({size}: {size: number}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-mail"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+);
