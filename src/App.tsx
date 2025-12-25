@@ -3,10 +3,8 @@ import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus
 import { db } from './firebase';
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
-// --- รหัสผ่านเข้าหลังบ้าน ---
-const ADMIN_PASSWORD = "8787"; 
+const ADMIN_PASSWORD = "8787";
 
-// --- ข้อมูลสินค้าเริ่มต้น ---
 const INITIAL_PRODUCTS = [
   { id: '1', name: "กระเป๋าเดินทาง 20 นิ้ว", description: "สี Midnight Blue (Limited)", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true },
   { id: '2', name: "เสื้อฮาวายลายช้าง (L)", description: "ผ้าไหมอิตาลี ใส่สบาย", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true },
@@ -14,31 +12,27 @@ const INITIAL_PRODUCTS = [
 ];
 
 export default function App() {
-  // --- States ---
   const [view, setView] = useState('home');
   const [products, setProducts] = useState<any[]>([]); 
   
-  // Banner Settings
   const [bannerSettings, setBannerSettings] = useState({
     bannerUrl: "https://images.unsplash.com/photo-1549417229-aa67d3263c09?w=2000",
     title: "ของขวัญพิเศษ แทนคำขอบคุณ",
     subtitle: "Privilege 2025"
   });
 
-  const [selectedProduct, setSelectedProduct] = useState<any>(null); 
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
   const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', pickupDate: '' });
   const [finalDeliveryMethod, setFinalDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
   
-  // Admin States
   const [orders, setOrders] = useState<any[]>([]);
   const [adminPassInput, setAdminPassInput] = useState('');
   const [adminTab, setAdminTab] = useState('orders'); 
   const [editingProduct, setEditingProduct] = useState<any>(null); 
   const [editingOrder, setEditingOrder] = useState<any>(null);
 
-  // --- 1. โหลดข้อมูล ---
   useEffect(() => {
     fetchContent();
   }, []);
@@ -76,7 +70,6 @@ export default function App() {
     setLoading(false);
   };
 
-  // --- 2. ฟังก์ชันลูกค้า ---
   const handleSubmitOrder = async (e: any) => {
     e.preventDefault();
     setLoading(true);
@@ -98,7 +91,6 @@ export default function App() {
     }
   };
 
-  // --- 3. ฟังก์ชัน Admin ---
   const handleLogin = (e: any) => {
     e.preventDefault();
     if (adminPassInput === ADMIN_PASSWORD) {
@@ -170,7 +162,7 @@ export default function App() {
       <div className="container mx-auto px-4">
         <p className="text-gray-600 text-sm md:text-base">
           © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v4.0 (Final)</span>
+          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v4.0 (Final)</span> 
         </p>
       </div>
     </footer>
@@ -183,11 +175,11 @@ export default function App() {
       <div className="bg-white shadow-sm sticky top-0 z-50 w-full">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div onClick={() => setView('home')} className="cursor-pointer text-[#003781] font-bold text-xl md:text-2xl flex items-center gap-2">
-            Allianz <span className="text-gray-400 font-light">Ayudhya</span>
+            Allianz <span className="text-gray-400 font-light">Ayudhya</span> 
           </div>
           {view !== 'admin' && view !== 'login' && (
             <button onClick={() => setView('login')} className="text-gray-300 hover:text-[#003781] p-2">
-              <Lock size={20} />
+              <Lock size={20} /> 
             </button>
           )}
         </div>
@@ -206,10 +198,10 @@ export default function App() {
               <div className="absolute inset-0 bg-gradient-to-r from-[#003781]/95 via-[#003781]/70 to-transparent flex items-center p-6 md:p-12">
                  <div className="text-white w-full max-w-xl">
                     <span className="bg-white/20 backdrop-blur text-xs md:text-sm px-3 py-1 rounded-full mb-3 inline-block border border-white/30 shadow-sm">
-                      {bannerSettings.subtitle}
+                      {bannerSettings.subtitle} 
                     </span>
                     <h1 className="text-2xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight drop-shadow-lg whitespace-pre-line">
-                      {bannerSettings.title}
+                      {bannerSettings.title} 
                     </h1>
                     <button onClick={() => document.getElementById('products-grid')?.scrollIntoView({behavior:'smooth'})} className="bg-white text-[#003781] px-5 py-2 md:px-6 md:py-3 rounded-xl text-sm md:text-base font-bold shadow-lg hover:bg-blue-50 transition active:scale-95">
                       เลือกของขวัญ
@@ -227,14 +219,14 @@ export default function App() {
               {products.filter(p => p.active).map((p) => (
                 <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full">
                   <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100">
-                    <img src={p.imageUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/>
+                    <img src={p.imageUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/> 
                   </div>
                   <div className="p-5 flex flex-col flex-grow">
                     <h3 className="font-bold text-lg md:text-xl text-gray-900 mb-2 line-clamp-1">{p.name}</h3>
                     <p className="text-gray-500 text-sm mb-4 flex-grow line-clamp-2">{p.description}</p>
                     <button onClick={() => { setSelectedProduct(p); setView('form'); }} className="w-full bg-[#003781] text-white py-3 rounded-xl font-bold text-base shadow-blue-900/10 hover:bg-[#002860] hover:shadow-lg transition-all active:scale-95">
                       แลกรับสิทธิ์
-                    </button>
+                    </button> 
                   </div>
                 </div>
               ))}
@@ -246,7 +238,7 @@ export default function App() {
         {view === 'form' && selectedProduct && (
           <div className="w-full max-w-4xl mx-auto animate-slide-up pb-10">
             <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
-              <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
+              <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า 
             </button>
             
             <div className="bg-white rounded-xl md:rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
@@ -255,7 +247,7 @@ export default function App() {
                  <img src={selectedProduct.imageUrl} className="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md bg-white border-4 border-white flex-shrink-0" />
                  <div className="w-full">
                    <div className="text-[#003781] text-xs md:text-sm font-bold uppercase mb-1 tracking-wide">ของขวัญที่คุณเลือก</div>
-                   <h2 className="text-xl md:text-3xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h2>
+                   <h2 className="text-xl md:text-3xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h2> 
                    <p className="text-gray-600 text-sm md:text-base">{selectedProduct.description}</p>
                  </div>
               </div>
@@ -263,7 +255,7 @@ export default function App() {
               <div className="p-4 md:p-10 w-full">
                 <form onSubmit={handleSubmitOrder} className="space-y-6 w-full">
                   
-                  {/* Delivery Method Toggle - RESPONSIVE FIX APPLIED */}
+                  {/* Delivery Method Toggle - Responsive Stacked on Mobile */}
                   <div className="w-full">
                     <label className="block text-sm font-bold text-gray-700 mb-3">เลือกวิธีการรับของขวัญ</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6">
@@ -302,7 +294,7 @@ export default function App() {
                               </label>
                               <input required type="tel" className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
                               placeholder="เช่น 0891234567" 
-                              value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                              value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} /> 
                           </div>
                       </div>
 
@@ -312,7 +304,7 @@ export default function App() {
                           </label>
                           <input required type="email" className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
                           placeholder="example@mail.com" 
-                          value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                          value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /> 
                       </div>
 
                       {/* Pickup Date */}
@@ -326,7 +318,7 @@ export default function App() {
                             type="datetime-local" 
                             className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base"
                             value={formData.pickupDate}
-                            onChange={e => setFormData({...formData, pickupDate: e.target.value})}
+                            onChange={e => setFormData({...formData, pickupDate: e.target.value})} 
                           />
                           <div className="flex gap-2 mt-3 text-red-600 text-xs md:text-sm items-start bg-white p-3 rounded-lg border border-red-100">
                            <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
@@ -339,7 +331,7 @@ export default function App() {
                       <div>
                         <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                           <MapPin size={18} className="text-[#003781]"/> 
-                          {deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'ระบุสถานที่นัดรับ'}
+                          {deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'ระบุสถานที่นัดรับ'} 
                         </label>
                         <textarea 
                           required 
@@ -352,7 +344,7 @@ export default function App() {
                           onChange={e => setFormData({...formData, address: e.target.value})} 
                         />
                         <p className="text-xs text-gray-400 mt-2 text-right">
-                          {deliveryMethod === 'delivery' ? '*กรุณาระบุให้ครบถ้วนเพื่อความรวดเร็วในการจัดส่ง' : '*เจ้าหน้าที่จะติดต่อนัดหมายเวลาอีกครั้ง'}
+                          {deliveryMethod === 'delivery' ? '*กรุณาระบุให้ครบถ้วนเพื่อความรวดเร็วในการจัดส่ง' : '*เจ้าหน้าที่จะติดต่อนัดหมายเวลาอีกครั้ง'} 
                         </p>
                       </div>
                   </div>
@@ -396,7 +388,7 @@ export default function App() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">วิธีรับ:</span>
-                        <span className="font-bold text-right text-[#003781]">{finalDeliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ'}</span>
+                        <span className="font-bold text-right text-[#003781]">{finalDeliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ'}</span> 
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">ชื่อผู้รับ:</span>
@@ -409,7 +401,7 @@ export default function App() {
                       {finalDeliveryMethod === 'pickup' && (
                         <div className="flex justify-between">
                           <span className="text-gray-500">เวลานัดหมาย:</span>
-                          <span className="font-bold text-right text-orange-600">{new Date(formData.pickupDate).toLocaleString('th-TH')}</span>
+                          <span className="font-bold text-right text-orange-600">{new Date(formData.pickupDate).toLocaleString('th-TH')}</span> 
                         </div>
                       )}
                       <div className="pt-2 border-t border-gray-200 mt-2 text-xs text-gray-400 text-center">
@@ -427,7 +419,7 @@ export default function App() {
                     className="flex items-center justify-center gap-2 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-95 text-base"
                   >
                     <MessageCircle size={22} />
-                    Line OA นัท อลิอันซ์
+                    Line OA นัท อลิอันซ์ 
                   </a>
                   <button onClick={() => window.location.reload()} className="w-full bg-gray-100 text-gray-600 hover:text-[#003781] px-10 py-3.5 rounded-xl font-bold hover:bg-gray-200 transition-all text-base">
                     กลับสู่หน้าหลัก
@@ -451,7 +443,7 @@ export default function App() {
                  value={adminPassInput}
                  onChange={e => setAdminPassInput(e.target.value)}
                />
-               <button className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold hover:bg-black transition">เข้าสู่ระบบ</button>
+               <button className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold hover:bg-black transition">เข้าสู่ระบบ</button> 
                <div onClick={() => setView('home')} className="text-sm text-gray-400 cursor-pointer hover:underline mt-4">กลับหน้าหลัก</div>
              </form>
           </div>
@@ -471,7 +463,7 @@ export default function App() {
              </div>
 
              <div className="flex gap-2 mb-6 border-b overflow-x-auto pb-1 no-scrollbar w-full">
-               <button onClick={() => setAdminTab('orders')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'orders' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>📦 ออเดอร์ ({orders.length})</button>
+               <button onClick={() => setAdminTab('orders')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'orders' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>📦 ออเดอร์ ({orders.length})</button> 
                <button onClick={() => setAdminTab('products')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'products' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🛍️ สินค้า</button>
                <button onClick={() => setAdminTab('settings')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'settings' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🖼️ ตั้งค่าเว็บ</button>
              </div>
@@ -547,7 +539,7 @@ export default function App() {
                        ))}
                        </tbody>
                      </table>
-                     {orders.length === 0 && <div className="p-10 text-center text-gray-400 flex flex-col items-center gap-2"><Package size={40}/> ยังไม่มีรายการสั่งซื้อ</div>}
+                     {orders.length === 0 && <div className="p-10 text-center text-gray-400 flex flex-col items-center gap-2"><Package size={40}/> ยังไม่มีรายการสั่งซื้อ</div>} 
                    </div>
                  </div>
                )}
