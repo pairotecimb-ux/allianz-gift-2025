@@ -15,7 +15,7 @@ const INITIAL_PRODUCTS = [
 
 export default function App() {
   // --- States ---
-  const [view, setView] = useState('home'); 
+  const [view, setView] = useState('home');
   const [products, setProducts] = useState<any[]>([]); 
   
   // Banner Settings
@@ -27,16 +27,16 @@ export default function App() {
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [loading, setLoading] = useState(false);
-  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
   const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', pickupDate: '' });
   const [finalDeliveryMethod, setFinalDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
   
   // Admin States
-  const [orders, setOrders] = useState<any[]>([]); 
+  const [orders, setOrders] = useState<any[]>([]);
   const [adminPassInput, setAdminPassInput] = useState('');
   const [adminTab, setAdminTab] = useState('orders'); 
   const [editingProduct, setEditingProduct] = useState<any>(null); 
-  const [editingOrder, setEditingOrder] = useState<any>(null); 
+  const [editingOrder, setEditingOrder] = useState<any>(null);
 
   // --- 1. โหลดข้อมูล ---
   useEffect(() => {
@@ -128,7 +128,7 @@ export default function App() {
         await updateDoc(doc(db, "products", id), data);
       }
       setEditingProduct(null);
-      fetchContent(); 
+      fetchContent();
     } catch (err: any) { alert("Error: " + err.message); }
   };
 
@@ -146,7 +146,7 @@ export default function App() {
   const handleDeleteOrder = async (id: string) => {
     if(!confirm("ยืนยันการลบออเดอร์นี้? (กู้คืนไม่ได้)")) return;
     await deleteDoc(doc(db, "orders", id));
-    fetchOrders(); 
+    fetchOrders();
   };
 
   const handleSaveOrder = async (e: any) => {
@@ -193,14 +193,14 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Content - ใช้ w-full และ container ในการคุม Layout */}
+      {/* Main Content */}
       <div className="flex-grow w-full py-6">
         <div className="container mx-auto px-4 md:px-6">
         
         {/* VIEW: HOME */}
         {view === 'home' && (
            <div className="animate-fade-in w-full">
-            {/* Banner - Responsive Height & Width */}
+            {/* Banner */}
             <div className="relative w-full aspect-[21/9] min-h-[200px] max-h-[400px] rounded-2xl overflow-hidden shadow-xl mb-8 md:mb-12 group">
               <img src={bannerSettings.bannerUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="Banner"/>
               <div className="absolute inset-0 bg-gradient-to-r from-[#003781]/95 via-[#003781]/70 to-transparent flex items-center p-6 md:p-12">
@@ -222,7 +222,7 @@ export default function App() {
                <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
             </div>
 
-            {/* Grid System - Responsive 100% */}
+            {/* Grid System */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 w-full">
               {products.filter(p => p.active).map((p) => (
                 <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full">
@@ -242,7 +242,7 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (100% Width & Responsive Layout) */}
+        {/* VIEW: FORM */}
         {view === 'form' && selectedProduct && (
           <div className="w-full max-w-4xl mx-auto animate-slide-up pb-10">
             <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
@@ -263,20 +263,20 @@ export default function App() {
               <div className="p-4 md:p-10 w-full">
                 <form onSubmit={handleSubmitOrder} className="space-y-6 w-full">
                   
-                  {/* Delivery Method Toggle - Equal Size */}
+                  {/* Delivery Method Toggle - RESPONSIVE FIX APPLIED */}
                   <div className="w-full">
                     <label className="block text-sm font-bold text-gray-700 mb-3">เลือกวิธีการรับของขวัญ</label>
-                    <div className="grid grid-cols-2 gap-3 md:gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6">
                       <div 
                         onClick={() => setDeliveryMethod('delivery')}
-                        className={`cursor-pointer rounded-xl p-4 md:p-6 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[120px] ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                        className={`w-full cursor-pointer rounded-xl p-4 md:p-6 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[120px] ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                       >
                         <Truck size={32} className="mb-1" />
                         <span className="font-bold text-sm md:text-lg text-center">จัดส่งถึงบ้าน</span>
                       </div>
                       <div 
                         onClick={() => setDeliveryMethod('pickup')}
-                        className={`cursor-pointer rounded-xl p-4 md:p-6 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[120px] ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                        className={`w-full cursor-pointer rounded-xl p-4 md:p-6 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[120px] ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                       >
                         <Handshake size={32} className="mb-1" />
                         <span className="font-bold text-sm md:text-lg text-center">สะดวกนัดรับ</span>
@@ -284,9 +284,8 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Input Fields Container */}
+                  {/* Input Fields */}
                   <div className="w-full space-y-4 md:space-y-6">
-                      {/* Name & Phone Grid */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 w-full">
                           <div>
                               <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
@@ -307,7 +306,6 @@ export default function App() {
                           </div>
                       </div>
 
-                      {/* Email */}
                       <div>
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                           <TiltedMailIcon size={18} /> อีเมล (สำหรับรับข้อมูล)
@@ -331,7 +329,7 @@ export default function App() {
                             onChange={e => setFormData({...formData, pickupDate: e.target.value})}
                           />
                           <div className="flex gap-2 mt-3 text-red-600 text-xs md:text-sm items-start bg-white p-3 rounded-lg border border-red-100">
-                            <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
+                           <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
                             <div>ทางตัวแทนจะ confirm วันเวลาที่คุณเลือกมาอีกครั้งใน Line OA ต่อไป</div>
                           </div>
                         </div>
@@ -368,7 +366,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: SUCCESS (Summary Ticket instead of Email) */}
+        {/* VIEW: SUCCESS */}
         {view === 'success' && (
           <div className="w-full max-w-2xl mx-auto animate-slide-up pb-10">
              <div className="bg-white rounded-xl md:rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full p-6 md:p-10 flex flex-col items-center justify-center text-center">
@@ -386,7 +384,6 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* SUMMARY TICKET (แทน Email Mockup) */}
                 <div className="w-full bg-gray-50 rounded-xl border border-dashed border-gray-300 p-6 mb-8 text-left relative">
                    <div className="flex items-center gap-2 mb-4 border-b border-gray-200 pb-2">
                       <Receipt size={20} className="text-gray-500"/>
@@ -547,7 +544,7 @@ export default function App() {
                                <button onClick={() => handleDeleteOrder(order.id)} className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200"><Trash2 size={14}/></button>
                              </td>
                            </tr>
-                         ))}
+                       ))}
                        </tbody>
                      </table>
                      {orders.length === 0 && <div className="p-10 text-center text-gray-400 flex flex-col items-center gap-2"><Package size={40}/> ยังไม่มีรายการสั่งซื้อ</div>}
@@ -561,7 +558,7 @@ export default function App() {
                     <div className="flex flex-col md:flex-row justify-between mb-4 gap-3">
                       <h3 className="font-bold text-lg">จัดการสินค้า</h3>
                       <button onClick={() => setEditingProduct({})} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-700 w-full md:w-auto">
-                        <Plus size={16}/> เพิ่มสินค้าใหม่
+                         <Plus size={16}/> เพิ่มสินค้าใหม่
                       </button>
                     </div>
 
@@ -586,7 +583,7 @@ export default function App() {
                             </div>
                           </form>
                         </div>
-                      </div>
+                    </div>
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -645,7 +642,7 @@ export default function App() {
                           <span className="text-xs bg-white/20 px-2 py-0.5 rounded backdrop-blur border border-white/30">{bannerSettings.subtitle}</span>
                           <div className="font-bold text-lg leading-tight mt-1">{bannerSettings.title}</div>
                        </div>
-                     </div>
+                      </div>
                    </div>
                  </div>
                )}
@@ -654,7 +651,7 @@ export default function App() {
           </div>
         )}
 
-        </div>
+      </div>
       </div>
       
       <Footer />
