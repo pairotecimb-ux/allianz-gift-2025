@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt } from 'lucide-react';
-import { db } from './firebase';
+import { db } from './firebase'; 
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
-const ADMIN_PASSWORD = "8787";
+// --- รหัสผ่านเข้าหลังบ้าน ---
+const ADMIN_PASSWORD = "8787"; 
 
+// --- ข้อมูลสินค้าเริ่มต้น ---
 const INITIAL_PRODUCTS = [
   { id: '1', name: "กระเป๋าเดินทาง 20 นิ้ว", description: "สี Midnight Blue (Limited)", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true },
   { id: '2', name: "เสื้อฮาวายลายช้าง (L)", description: "ผ้าไหมอิตาลี ใส่สบาย", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true },
@@ -12,43 +14,47 @@ const INITIAL_PRODUCTS = [
 ];
 
 export default function App() {
-  const [view, setView] = useState('home');
+  // --- States ---
+  const [view, setView] = useState('home'); 
   const [products, setProducts] = useState<any[]>([]); 
   
+  // Banner Settings
   const [bannerSettings, setBannerSettings] = useState({
     bannerUrl: "https://images.unsplash.com/photo-1549417229-aa67d3263c09?w=2000",
     title: "ของขวัญพิเศษ แทนคำขอบคุณ",
     subtitle: "Privilege 2025"
   });
 
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
-  const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', pickupDate: '' });
+  const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', pickupDate: '' }); 
   const [finalDeliveryMethod, setFinalDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
   
+  // Admin States
   const [orders, setOrders] = useState<any[]>([]);
-  const [adminPassInput, setAdminPassInput] = useState('');
+  const [adminPassInput, setAdminPassInput] = useState(''); 
   const [adminTab, setAdminTab] = useState('orders'); 
   const [editingProduct, setEditingProduct] = useState<any>(null); 
   const [editingOrder, setEditingOrder] = useState<any>(null);
 
+  // --- 1. โหลดข้อมูล ---
   useEffect(() => {
     fetchContent();
-  }, []);
+  }, []); 
 
   const fetchContent = async () => {
     setLoading(true);
     try {
       const pQuery = query(collection(db, "products"));
-      const pSnapshot = await getDocs(pQuery);
+      const pSnapshot = await getDocs(pQuery); 
       let pList = pSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
       if (pList.length === 0) {
         for (const p of INITIAL_PRODUCTS) {
           await setDoc(doc(db, "products", p.id), p);
         }
-        pList = INITIAL_PRODUCTS;
+        pList = INITIAL_PRODUCTS; 
       }
       setProducts(pList);
 
@@ -59,7 +65,7 @@ export default function App() {
           bannerUrl: data.bannerUrl || bannerSettings.bannerUrl,
           title: data.title || bannerSettings.title,
           subtitle: data.subtitle || bannerSettings.subtitle
-        });
+        }); 
       } else {
         await setDoc(doc(db, "settings", "main"), bannerSettings);
       }
@@ -67,12 +73,13 @@ export default function App() {
     } catch (err) {
       console.error("Error fetching:", err);
     }
-    setLoading(false);
+    setLoading(false); 
   };
 
+  // --- 2. ฟังก์ชันลูกค้า ---
   const handleSubmitOrder = async (e: any) => {
     e.preventDefault();
-    setLoading(true);
+    setLoading(true); 
     try {
       await addDoc(collection(db, "orders"), {
         ...formData,
@@ -82,7 +89,7 @@ export default function App() {
         timestamp: Timestamp.now(),
         status: 'pending'
       });
-      setFinalDeliveryMethod(deliveryMethod);
+      setFinalDeliveryMethod(deliveryMethod); 
       setLoading(false);
       setView('success');
     } catch (error: any) {
@@ -91,9 +98,10 @@ export default function App() {
     }
   };
 
+  // --- 3. ฟังก์ชัน Admin ---
   const handleLogin = (e: any) => {
     e.preventDefault();
-    if (adminPassInput === ADMIN_PASSWORD) {
+    if (adminPassInput === ADMIN_PASSWORD) { 
       fetchOrders();
       setView('admin');
       setAdminPassInput('');
@@ -104,7 +112,7 @@ export default function App() {
 
   const fetchOrders = async () => {
     const q = query(collection(db, "orders"), orderBy("timestamp", "desc"));
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await getDocs(q); 
     setOrders(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   };
 
@@ -113,20 +121,20 @@ export default function App() {
     if (!editingProduct) return;
     try {
       const isNew = !editingProduct.id;
-      if (isNew) {
+      if (isNew) { 
         await addDoc(collection(db, "products"), { ...editingProduct, active: true });
       } else {
         const { id, ...data } = editingProduct;
-        await updateDoc(doc(db, "products", id), data);
+        await updateDoc(doc(db, "products", id), data); 
       }
       setEditingProduct(null);
       fetchContent();
-    } catch (err: any) { alert("Error: " + err.message); }
+    } catch (err: any) { alert("Error: " + err.message); } 
   };
 
   const handleDeleteProduct = async (id: string) => {
     if(!confirm("ยืนยันการลบสินค้า?")) return;
-    await deleteDoc(doc(db, "products", id));
+    await deleteDoc(doc(db, "products", id)); 
     fetchContent();
   };
 
@@ -137,7 +145,7 @@ export default function App() {
 
   const handleDeleteOrder = async (id: string) => {
     if(!confirm("ยืนยันการลบออเดอร์นี้? (กู้คืนไม่ได้)")) return;
-    await deleteDoc(doc(db, "orders", id));
+    await deleteDoc(doc(db, "orders", id)); 
     fetchOrders();
   };
 
@@ -146,14 +154,14 @@ export default function App() {
     if (!editingOrder) return;
     try {
       const { id, ...data } = editingOrder;
-      await updateDoc(doc(db, "orders", id), data);
+      await updateDoc(doc(db, "orders", id), data); 
       setEditingOrder(null);
       fetchOrders();
     } catch (err: any) { alert("บันทึกออเดอร์ไม่สำเร็จ: " + err.message); }
   };
 
   const handleSaveBanner = async () => {
-    await setDoc(doc(db, "settings", "main"), bannerSettings);
+    await setDoc(doc(db, "settings", "main"), bannerSettings); 
     alert("บันทึกการตั้งค่าหน้าเว็บเรียบร้อย");
   };
 
@@ -166,7 +174,7 @@ export default function App() {
         </p>
       </div>
     </footer>
-  );
+  ); 
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col w-full">
@@ -255,7 +263,7 @@ export default function App() {
               <div className="p-4 md:p-10 w-full">
                 <form onSubmit={handleSubmitOrder} className="space-y-6 w-full">
                   
-                  {/* Delivery Method Toggle - Responsive Stacked on Mobile */}
+                  {/* Delivery Method Toggle */}
                   <div className="w-full">
                     <label className="block text-sm font-bold text-gray-700 mb-3">เลือกวิธีการรับของขวัญ</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6">
@@ -307,9 +315,10 @@ export default function App() {
                           value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /> 
                       </div>
 
-                      {/* Pickup Date */}
-                      {deliveryMethod === 'pickup' && (
-                        <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 animate-fade-in w-full">
+                      {/* Pickup Date / Dummy Box Logic */}
+                      {deliveryMethod === 'pickup' ? (
+                        // 1. กล่องจริง: แสดงเมื่อเลือก "นัดรับ"
+                        <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 w-full animate-fade-in">
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
                             <Calendar size={18} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
                           </label>
@@ -321,6 +330,21 @@ export default function App() {
                             onChange={e => setFormData({...formData, pickupDate: e.target.value})} 
                           />
                           <div className="flex gap-2 mt-3 text-red-600 text-xs md:text-sm items-start bg-white p-3 rounded-lg border border-red-100">
+                           <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
+                            <div>ทางตัวแทนจะ confirm วันเวลาที่คุณเลือกมาอีกครั้งใน Line OA ต่อไป</div>
+                          </div>
+                        </div>
+                      ) : (
+                        // 2. กล่องหลอก (Dummy): แสดงเมื่อเลือก "จัดส่ง"
+                        // ใช้ opacity-0 เพื่อให้มองไม่เห็น แต่ยังกินพื้นที่เท่าเดิม
+                        <div className="p-4 rounded-xl border border-transparent w-full select-none pointer-events-none opacity-0" aria-hidden="true">
+                          <label className="flex items-center gap-2 text-sm font-bold mb-2">
+                            <Calendar size={18} /> เลือกวันและเวลานัดรับ
+                          </label>
+                          <div className="w-full px-4 py-3 rounded-xl border border-transparent text-base">
+                             &nbsp; 
+                          </div>
+                          <div className="flex gap-2 mt-3 text-xs md:text-sm items-start p-3 rounded-lg border border-transparent">
                            <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
                             <div>ทางตัวแทนจะ confirm วันเวลาที่คุณเลือกมาอีกครั้งใน Line OA ต่อไป</div>
                           </div>
