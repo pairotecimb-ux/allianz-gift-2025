@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Mail } from 'lucide-react';
 import { db } from './firebase';
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
@@ -28,8 +28,8 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
-  const [formData, setFormData] = useState({ name: '', phone: '', address: '', pickupDate: '' });
-  const [finalDeliveryMethod, setFinalDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); // สำหรับจำค่าไปแสดงหน้า Success
+  const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', pickupDate: '' });
+  const [finalDeliveryMethod, setFinalDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
   
   // Admin States
   const [orders, setOrders] = useState<any[]>([]); 
@@ -89,9 +89,12 @@ export default function App() {
         timestamp: Timestamp.now(),
         status: 'pending'
       });
-      setFinalDeliveryMethod(deliveryMethod); // จำค่าไว้แสดงผล
+      setFinalDeliveryMethod(deliveryMethod);
       setLoading(false);
       setView('success');
+      
+      // หมายเหตุ: ตรงนี้คือจุดที่จะเรียก API ส่งอีเมลจริงๆ
+      console.log("Email Template Generated for: " + formData.email);
     } catch (error: any) {
       alert("เกิดข้อผิดพลาด: " + error.message);
       setLoading(false);
@@ -240,7 +243,7 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (Full Width Fixed & Increased Max Width) */}
+        {/* VIEW: FORM (Fixed: Consistent Width for Delivery & Pickup) */}
         {view === 'form' && selectedProduct && (
           <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
             <div className="px-4 md:px-0">
@@ -289,6 +292,16 @@ export default function App() {
                       <input required className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
                       placeholder="ระบุชื่อจริง นามสกุล" 
                       value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                  </div>
+
+                  {/* เพิ่มช่อง Email */}
+                  <div>
+                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                      <Mail size={18} className="text-[#003781]"/> อีเมล (สำหรับรับยืนยัน)
+                      </label>
+                      <input required type="email" className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
+                      placeholder="example@mail.com" 
+                      value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                   </div>
 
                   <div>
@@ -348,7 +361,7 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: SUCCESS (Full Width & Updated Text) */}
+        {/* VIEW: SUCCESS (Email Mockup) */}
         {view === 'success' && (
           <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
              <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0 p-8 md:p-12 flex flex-col items-center justify-center text-center">
@@ -364,6 +377,23 @@ export default function App() {
                       : "ขอบคุณที่ร่วมกิจกรรมกับเรา ทางเราจะติดต่อ Confirm วันเวลาสะดวกในการนัดรับของขวัญกับท่านโดยเร็วที่สุด"
                     }
                   </p>
+                </div>
+
+                {/* ตัวอย่างอีเมลที่จะได้รับ */}
+                <div className="w-full max-w-lg bg-gray-100 p-6 rounded-xl border border-gray-300 mb-10 text-left relative overflow-hidden">
+                   <div className="absolute top-0 left-0 w-full h-1 bg-[#003781]"></div>
+                   <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-1"><Mail size={12}/> ตัวอย่างอีเมลยืนยัน (Simulation)</h4>
+                   <div className="bg-white p-4 rounded shadow-sm text-sm text-gray-700">
+                      <div className="font-bold border-b pb-2 mb-2">Subject: ยืนยันการรับสิทธิ์ ของขวัญ Allianz Gift 2025</div>
+                      <p>เรียนคุณ {formData.name},</p>
+                      <p className="mt-2">ขอบคุณที่ร่วมกิจกรรม รายละเอียดของคุณคือ:</p>
+                      <ul className="list-disc list-inside mt-2 space-y-1 text-xs text-gray-600">
+                        <li>ของขวัญ: <strong>{selectedProduct.name}</strong></li>
+                        <li>การรับของ: <strong>{finalDeliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ'}</strong></li>
+                        {finalDeliveryMethod === 'pickup' && <li>เวลานัดหมาย: {new Date(formData.pickupDate).toLocaleString('th-TH')}</li>}
+                      </ul>
+                      <p className="mt-4 text-xs text-gray-400">อีเมลนี้จะถูกส่งไปยัง: {formData.email}</p>
+                   </div>
                 </div>
 
                 <div className="w-full max-w-sm space-y-4">
