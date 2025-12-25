@@ -28,7 +28,8 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
-  const [formData, setFormData] = useState({ name: '', phone: '', address: '', pickupDate: '' }); // เพิ่ม pickupDate
+  const [formData, setFormData] = useState({ name: '', phone: '', address: '', pickupDate: '' });
+  const [finalDeliveryMethod, setFinalDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); // สำหรับจำค่าไปแสดงหน้า Success
   
   // Admin States
   const [orders, setOrders] = useState<any[]>([]); 
@@ -88,6 +89,7 @@ export default function App() {
         timestamp: Timestamp.now(),
         status: 'pending'
       });
+      setFinalDeliveryMethod(deliveryMethod); // จำค่าไว้แสดงผล
       setLoading(false);
       setView('success');
     } catch (error: any) {
@@ -189,13 +191,13 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Content - ปรับ Padding ให้เต็มจอสำหรับมือถือ (px-0) แต่มีขอบสำหรับ PC */}
+      {/* Main Content */}
       <div className={`flex-grow w-full max-w-7xl mx-auto ${view === 'form' || view === 'success' ? 'px-0 md:px-6' : 'px-4 sm:px-6 lg:px-8'} py-6`}>
         
         {/* VIEW: HOME */}
         {view === 'home' && (
            <div className="animate-fade-in">
-            {/* Banner Section */}
+            {/* Banner */}
             <div className="relative w-full h-64 sm:h-80 md:h-[400px] rounded-2xl overflow-hidden shadow-xl mb-8 md:mb-12 group">
               <img src={bannerSettings.bannerUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="Banner"/>
               <div className="absolute inset-0 bg-gradient-to-r from-[#003781]/95 via-[#003781]/70 to-transparent flex items-center p-6 sm:p-10 md:p-16">
@@ -213,8 +215,9 @@ export default function App() {
               </div>
             </div>
 
+            {/* Header Text Updated */}
             <div id="products-grid" className="mb-6 flex items-center gap-2 text-xl md:text-2xl font-bold text-gray-800">
-               <ShoppingBag className="text-[#003781]"/> รายการของขวัญ
+               <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
             </div>
 
             {/* Grid System */}
@@ -237,10 +240,9 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (Full Width on Mobile) */}
+        {/* VIEW: FORM (Full Width on Mobile Fixed) */}
         {view === 'form' && selectedProduct && (
           <div className="w-full max-w-2xl mx-auto animate-slide-up pb-10">
-            {/* ปุ่มย้อนกลับ - ใส่ Margin ให้ห่างจากขอบจอเล็กน้อยบนมือถือ */}
             <div className="px-4 md:px-0">
                <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-base">
                  <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
@@ -248,7 +250,6 @@ export default function App() {
             </div>
             
             <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0">
-              {/* Product Header */}
               <div className="bg-blue-50/50 p-6 md:p-8 border-b flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
                  <img src={selectedProduct.imageUrl} className="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md bg-white border-4 border-white" />
                  <div>
@@ -258,11 +259,9 @@ export default function App() {
                  </div>
               </div>
 
-              {/* Form Inputs */}
               <div className="p-6 md:p-10">
                 <form onSubmit={handleSubmitOrder} className="space-y-6">
                   
-                  {/* Delivery Method Toggle */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-3">เลือกวิธีการรับของขวัญ</label>
                     <div className="grid grid-cols-2 gap-4">
@@ -283,7 +282,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* ชื่อ */}
                   <div>
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                       <User size={18} className="text-[#003781]"/> ชื่อ-นามสกุล
@@ -293,7 +291,6 @@ export default function App() {
                       value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                   </div>
 
-                  {/* เบอร์โทร */}
                   <div>
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                       <Phone size={18} className="text-[#003781]"/> เบอร์โทรศัพท์
@@ -303,7 +300,6 @@ export default function App() {
                       value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                   </div>
 
-                  {/* Pickup Date & Time (เฉพาะนัดรับ) */}
                   {deliveryMethod === 'pickup' && (
                     <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
@@ -323,7 +319,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Address / Location */}
                   <div>
                     <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                       <MapPin size={18} className="text-[#003781]"/> 
@@ -353,38 +348,43 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: SUCCESS (Full Width on Mobile) */}
+        {/* VIEW: SUCCESS (Full Width & Updated Text) */}
         {view === 'success' && (
-          <div className="w-full max-w-2xl mx-auto text-center py-12 md:py-20 animate-fade-in px-4">
-            <div className="w-24 h-24 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
-              <CheckCircle className="text-green-600 w-12 h-12 md:w-14 md:h-14" />
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">บันทึกข้อมูลสำเร็จ!</h2>
-            
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 mb-10 text-left">
-              <p className="text-gray-700 leading-relaxed text-lg">
-                ขอบคุณที่ร่วมรายการ<br/>
-                เจ้าหน้าที่จะทำการ{deliveryMethod === 'delivery' ? 'จัดส่งของขวัญ' : 'ติดต่อนัดหมาย'} <br/>
-                <span className="font-bold text-[#003781]">ภายใน 7-10 วันทำการ</span>
-              </p>
-              <hr className="my-6 border-gray-100"/>
-              <p className="text-gray-600 text-base mb-4">
-                หากมีข้อสงสัยติดต่อ:
-              </p>
-              <a 
-                href="https://line.me/R/ti/p/@386cqgdi" 
-                target="_blank" 
-                rel="noreferrer"
-                className="flex items-center justify-center gap-3 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3 rounded-xl font-bold transition-all shadow-md"
-              >
-                <MessageCircle size={24} />
-                Line OA นัท อลิอันซ์
-              </a>
-            </div>
+          <div className="w-full max-w-2xl mx-auto animate-slide-up pb-10">
+             <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0 p-8 md:p-12 flex flex-col items-center justify-center text-center">
+                <div className="w-24 h-24 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mb-8">
+                  <CheckCircle className="text-green-600 w-12 h-12 md:w-14 md:h-14" />
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">บันทึกข้อมูลสำเร็จ!</h2>
+                
+                <div className="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 mb-10 text-center max-w-lg">
+                  <p className="text-gray-800 leading-relaxed text-lg font-medium">
+                    ขอบคุณที่ร่วมกิจกรรมกับเรา
+                  </p>
+                  <p className="text-[#003781] leading-relaxed text-lg mt-2 font-bold">
+                    {finalDeliveryMethod === 'delivery' 
+                      ? "ทางเราจะจัดส่งของขวัญให้ท่านโดยเร็วที่สุด"
+                      : "ทางเราจะติดต่อ Confirm วันเวลาสะดวกในการนัดรับของขวัญกับท่านโดยเร็วที่สุด"
+                    }
+                  </p>
+                </div>
 
-            <button onClick={() => window.location.reload()} className="w-full md:w-auto bg-gray-100 text-gray-600 hover:text-[#003781] px-10 py-4 rounded-xl font-bold hover:bg-gray-200 transition-all text-lg">
-              กลับสู่หน้าหลัก
-            </button>
+                <div className="w-full max-w-sm space-y-4">
+                  <p className="text-gray-500 text-sm">หากมีข้อสงสัยติดต่อ:</p>
+                  <a 
+                    href="https://line.me/R/ti/p/@386cqgdi" 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="flex items-center justify-center gap-3 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-95"
+                  >
+                    <MessageCircle size={24} />
+                    Line OA นัท อลิอันซ์
+                  </a>
+                  <button onClick={() => window.location.reload()} className="w-full bg-gray-100 text-gray-600 hover:text-[#003781] px-10 py-3.5 rounded-xl font-bold hover:bg-gray-200 transition-all text-base">
+                    กลับสู่หน้าหลัก
+                  </button>
+                </div>
+             </div>
           </div>
         )}
 
