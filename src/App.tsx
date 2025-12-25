@@ -240,9 +240,9 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (Full Width on Mobile Fixed) */}
+        {/* VIEW: FORM (Full Width Fixed & Increased Max Width) */}
         {view === 'form' && selectedProduct && (
-          <div className="w-full max-w-2xl mx-auto animate-slide-up pb-10">
+          <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
             <div className="px-4 md:px-0">
                <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-base">
                  <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
@@ -350,21 +350,18 @@ export default function App() {
 
         {/* VIEW: SUCCESS (Full Width & Updated Text) */}
         {view === 'success' && (
-          <div className="w-full max-w-2xl mx-auto animate-slide-up pb-10">
+          <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
              <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0 p-8 md:p-12 flex flex-col items-center justify-center text-center">
                 <div className="w-24 h-24 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mb-8">
                   <CheckCircle className="text-green-600 w-12 h-12 md:w-14 md:h-14" />
                 </div>
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">บันทึกข้อมูลสำเร็จ!</h2>
                 
-                <div className="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 mb-10 text-center max-w-lg">
-                  <p className="text-gray-800 leading-relaxed text-lg font-medium">
-                    ขอบคุณที่ร่วมกิจกรรมกับเรา
-                  </p>
-                  <p className="text-[#003781] leading-relaxed text-lg mt-2 font-bold">
+                <div className="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 mb-10 text-center max-w-xl w-full">
+                  <p className="text-[#003781] leading-relaxed text-lg md:text-xl font-bold">
                     {finalDeliveryMethod === 'delivery' 
-                      ? "ทางเราจะจัดส่งของขวัญให้ท่านโดยเร็วที่สุด"
-                      : "ทางเราจะติดต่อ Confirm วันเวลาสะดวกในการนัดรับของขวัญกับท่านโดยเร็วที่สุด"
+                      ? "ขอบคุณที่ร่วมกิจกรรมกับเรา ทางเราจะจัดส่งของขวัญให้ท่านโดยเร็วที่สุด"
+                      : "ขอบคุณที่ร่วมกิจกรรมกับเรา ทางเราจะติดต่อ Confirm วันเวลาสะดวกในการนัดรับของขวัญกับท่านโดยเร็วที่สุด"
                     }
                   </p>
                 </div>
