@@ -39,17 +39,18 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<any>(null); 
   const [editingOrder, setEditingOrder] = useState<any>(null);
 
-  // --- FIX 1: บังคับตั้งค่า Viewport ให้พอดีมือถือ (แก้ปัญหาหน้าจอไม่พอดี/ต้องซูม) ---
+  // --- FIX 1: Force Viewport for Mobile ---
+  // บังคับให้หน้าจอพอดีกับมือถือ (แก้ปัญหาหน้าจอใหญ่/ต้องซูม)
   useEffect(() => {
-    // โค้ดนี้จะทำงานทันทีที่เปิดเว็บ เพื่อเช็คว่ามี meta viewport หรือยัง
-    let meta = document.querySelector("meta[name=viewport]");
+    const metaId = 'viewport-meta-tag-force';
+    let meta = document.getElementById(metaId) as HTMLMetaElement;
     if (!meta) {
-      meta = document.createElement("meta");
-      meta.setAttribute("name", "viewport");
+      meta = document.createElement('meta');
+      meta.id = metaId;
+      meta.name = 'viewport';
       document.head.appendChild(meta);
     }
-    // ตั้งค่าให้กว้างเท่าอุปกรณ์ ห้ามซูม และสเกลเริ่มต้น 1.0
-    meta.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no");
+    meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
   }, []);
 
   // --- 1. โหลดข้อมูล ---
@@ -191,11 +192,13 @@ export default function App() {
   ); 
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col w-full overflow-x-hidden">
+    // FIX: overflow-x-hidden ที่ Root เพื่อป้องกันการเลื่อนซ้ายขวา
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col w-full overflow-x-hidden max-w-[100vw]">
       
       {/* Navbar */}
       <div className="bg-white shadow-sm sticky top-0 z-50 w-full">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        {/* FIX: เปลี่ยน container เป็น w-full px-4 เพื่อความชัวร์ในมือถือ */}
+        <div className="w-full max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div onClick={() => setView('home')} className="cursor-pointer text-[#003781] font-bold text-xl md:text-2xl flex items-center gap-2">
             Allianz <span className="text-gray-400 font-light">Ayudhya</span> 
           </div>
@@ -209,11 +212,12 @@ export default function App() {
 
       {/* Main Content */}
       <div className="flex-grow w-full py-6">
-        <div className="container mx-auto px-4 md:px-6">
+        {/* FIX: ใช้ w-full max-w-7xl แทน container เพื่อให้เต็มจอในมือถือแต่ไม่ล้น */}
+        <div className="w-full max-w-7xl mx-auto px-4 md:px-6">
         
         {/* VIEW: HOME */}
         {view === 'home' && (
-           <div className="animate-fade-in w-full">
+           <div className="animate-fade-in w-full overflow-hidden">
             {/* Banner */}
             <div className="relative w-full aspect-[21/9] min-h-[200px] max-h-[400px] rounded-2xl overflow-hidden shadow-xl mb-8 md:mb-12 group">
               <img src={bannerSettings.bannerUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="Banner"/>
@@ -222,7 +226,8 @@ export default function App() {
                     <span className="bg-white/20 backdrop-blur text-xs md:text-sm px-3 py-1 rounded-full mb-3 inline-block border border-white/30 shadow-sm">
                       {bannerSettings.subtitle} 
                     </span>
-                    <h1 className="text-2xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight drop-shadow-lg whitespace-pre-line break-words">
+                    {/* FIX: ปรับขนาดตัวหนังสือ Title ใน Mobile ให้เล็กลง (text-xl) เพื่อไม่ให้ดันจนจอล้น */}
+                    <h1 className="text-xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight drop-shadow-lg whitespace-pre-line break-words">
                       {bannerSettings.title} 
                     </h1>
                     <button onClick={() => document.getElementById('products-grid')?.scrollIntoView({behavior:'smooth'})} className="bg-white text-[#003781] px-5 py-2 md:px-6 md:py-3 rounded-xl text-sm md:text-base font-bold shadow-lg hover:bg-blue-50 transition active:scale-95">
@@ -341,7 +346,7 @@ export default function App() {
                         </p>
                       </div>
 
-                      {/* FIX 2: ใช้ Dummy Box ล่องหน (Opacity 0) สลับกับกล่องวันที่ เพื่อให้ความสูงเท่ากันเป๊ะ 100% ไม่กระโดด */}
+                      {/* FIX 2: ป้องกัน Layout ขยับ */}
                       {deliveryMethod === 'pickup' ? (
                         // 1. กล่องเลือกวัน (นัดรับ) - ของจริง
                         <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 w-full animate-fade-in">
@@ -361,7 +366,7 @@ export default function App() {
                           </div>
                         </div>
                       ) : (
-                        // 2. กล่องล่องหน (Dummy Box) - มองไม่เห็น แต่กินพื้นที่เท่ากันเป๊ะ
+                        // 2. กล่องล่องหน (Dummy Box) - มองไม่เห็น แต่กินพื้นที่เท่ากันเป๊ะ (ตามที่ลูกค้าขอ: "บล้อกวันที่ซ่อนไว้อยู่แบบไม่เห้นก็ได้")
                         <div className="bg-transparent p-4 rounded-xl border border-transparent w-full opacity-0 pointer-events-none select-none" aria-hidden="true">
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
                             <Calendar size={18} /> เลือกวันและเวลานัดรับ
@@ -374,7 +379,7 @@ export default function App() {
                         </div>
                       )}
                       
-                      {/* Remark Field - วางแยกออกมาถาวรด้านล่างสุด ไม่ให้กระทบ layout ข้างบน */}
+                      {/* Remark Field - วางแยกออกมาถาวรด้านล่างสุด */}
                       <div className="w-full">
                         <label className="flex items-center gap-2 text-sm font-bold text-gray-600 mb-2">
                           <FileText size={18} /> หมายเหตุ (ถ้ามี)
@@ -697,7 +702,7 @@ export default function App() {
           </div>
         )}
 
-      </div>
+        </div>
       </div>
       
       <Footer />
