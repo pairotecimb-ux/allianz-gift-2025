@@ -92,8 +92,6 @@ export default function App() {
       setFinalDeliveryMethod(deliveryMethod);
       setLoading(false);
       setView('success');
-      
-      // หมายเหตุ: ตรงนี้คือจุดที่จะเรียก API ส่งอีเมลจริงๆ
       console.log("Email Template Generated for: " + formData.email);
     } catch (error: any) {
       alert("เกิดข้อผิดพลาด: " + error.message);
@@ -195,7 +193,7 @@ export default function App() {
       </div>
 
       {/* Main Content */}
-      <div className={`flex-grow w-full max-w-7xl mx-auto ${view === 'form' || view === 'success' ? 'px-0 md:px-6' : 'px-4 sm:px-6 lg:px-8'} py-6`}>
+      <div className={`flex-grow w-full max-w-7xl mx-auto ${view === 'form' || view === 'success' ? 'px-0 md:px-4' : 'px-4 sm:px-6 lg:px-8'} py-4 md:py-6`}>
         
         {/* VIEW: HOME */}
         {view === 'home' && (
@@ -218,13 +216,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* Header Text Updated */}
             <div id="products-grid" className="mb-6 flex items-center gap-2 text-xl md:text-2xl font-bold text-gray-800">
                <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
             </div>
 
-            {/* Grid System */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            {/* Grid System - Responsive */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
               {products.filter(p => p.active).map((p) => (
                 <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col h-full">
                   <div className="h-56 sm:h-64 overflow-hidden relative bg-gray-100">
@@ -243,104 +240,112 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (Fixed: Consistent Width for Delivery & Pickup) */}
+        {/* VIEW: FORM (Revised Responsive Layout) */}
         {view === 'form' && selectedProduct && (
-          <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
+          <div className="w-full max-w-4xl mx-auto animate-slide-up pb-10">
             <div className="px-4 md:px-0">
-               <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-base">
+               <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
                  <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
                </button>
             </div>
             
             <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0">
-              <div className="bg-blue-50/50 p-6 md:p-8 border-b flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
-                 <img src={selectedProduct.imageUrl} className="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md bg-white border-4 border-white" />
+              {/* Product Header */}
+              <div className="bg-blue-50/50 p-4 md:p-8 border-b flex flex-row gap-4 md:gap-6 items-center">
+                 <img src={selectedProduct.imageUrl} className="w-24 h-24 md:w-32 md:h-32 rounded-xl object-cover shadow-md bg-white border-2 border-white flex-shrink-0" />
                  <div>
-                   <div className="text-[#003781] text-sm font-bold uppercase mb-2 tracking-wide">ของขวัญที่คุณเลือก</div>
-                   <h2 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h2>
-                   <p className="text-gray-600">{selectedProduct.description}</p>
+                   <div className="text-[#003781] text-xs md:text-sm font-bold uppercase mb-1 tracking-wide">ของขวัญที่คุณเลือก</div>
+                   <h2 className="text-lg md:text-2xl font-bold text-gray-900 leading-tight mb-1">{selectedProduct.name}</h2>
+                   <p className="text-gray-600 text-sm md:text-base line-clamp-2">{selectedProduct.description}</p>
                  </div>
               </div>
 
-              <div className="p-6 md:p-10">
-                <form onSubmit={handleSubmitOrder} className="space-y-6">
+              <div className="p-4 md:p-10">
+                <form onSubmit={handleSubmitOrder} className="space-y-4 md:space-y-6">
                   
+                  {/* Delivery Method Toggle - Responsive Grid */}
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-3">เลือกวิธีการรับของขวัญ</label>
-                    <div className="grid grid-cols-2 gap-4">
+                    <label className="block text-sm font-bold text-gray-700 mb-2 md:mb-3">เลือกวิธีการรับของขวัญ</label>
+                    <div className="grid grid-cols-2 gap-3 md:gap-4 h-24 md:h-28">
                       <div 
                         onClick={() => setDeliveryMethod('delivery')}
-                        className={`cursor-pointer rounded-xl p-4 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[100px] ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                        className={`cursor-pointer rounded-xl p-2 md:p-4 border-2 flex flex-col items-center justify-center gap-1 md:gap-2 transition-all h-full ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                       >
-                        <Truck size={28} />
-                        <span className="font-bold text-sm text-center">จัดส่งถึงบ้าน</span>
+                        <Truck size={24} className="md:w-8 md:h-8" />
+                        <span className="font-bold text-sm md:text-base text-center">จัดส่งถึงบ้าน</span>
                       </div>
                       <div 
                         onClick={() => setDeliveryMethod('pickup')}
-                        className={`cursor-pointer rounded-xl p-4 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[100px] ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                        className={`cursor-pointer rounded-xl p-2 md:p-4 border-2 flex flex-col items-center justify-center gap-1 md:gap-2 transition-all h-full ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                       >
-                        <Handshake size={28} />
-                        <span className="font-bold text-sm text-center">สะดวกนัดรับ</span>
+                        <Handshake size={24} className="md:w-8 md:h-8" />
+                        <span className="font-bold text-sm md:text-base text-center">สะดวกนัดรับ</span>
                       </div>
                     </div>
                   </div>
 
-                  <div>
-                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                      <User size={18} className="text-[#003781]"/> ชื่อ-นามสกุล
-                      </label>
-                      <input required className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
-                      placeholder="ระบุชื่อจริง นามสกุล" 
-                      value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                  {/* Info Fields - Grid on Desktop, Stack on Mobile */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                      {/* ชื่อ */}
+                      <div>
+                          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                          <User size={16} className="text-[#003781]"/> ชื่อ-นามสกุล
+                          </label>
+                          <input required className="w-full px-3 py-3 md:px-4 md:py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-sm md:text-base" 
+                          placeholder="ระบุชื่อจริง นามสกุล" 
+                          value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                      </div>
+
+                      {/* เบอร์โทร */}
+                      <div>
+                          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                          <Phone size={16} className="text-[#003781]"/> เบอร์โทรศัพท์
+                          </label>
+                          <input required type="tel" className="w-full px-3 py-3 md:px-4 md:py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-sm md:text-base" 
+                          placeholder="เช่น 0891234567" 
+                          value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                      </div>
                   </div>
 
-                  {/* เพิ่มช่อง Email */}
+                  {/* อีเมล - Full Width */}
                   <div>
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                      <Mail size={18} className="text-[#003781]"/> อีเมล (สำหรับรับยืนยัน)
+                      <Mail size={16} className="text-[#003781]"/> อีเมล (สำหรับรับยืนยัน)
                       </label>
-                      <input required type="email" className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
+                      <input required type="email" className="w-full px-3 py-3 md:px-4 md:py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-sm md:text-base" 
                       placeholder="example@mail.com" 
                       value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                  </div>
-
-                  <div>
-                      <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                      <Phone size={18} className="text-[#003781]"/> เบอร์โทรศัพท์
-                      </label>
-                      <input required type="tel" className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
-                      placeholder="เช่น 0891234567" 
-                      value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                   </div>
 
                   {deliveryMethod === 'pickup' && (
                     <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
-                        <Calendar size={18} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
+                        <Calendar size={16} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
                       </label>
                       <input 
                         required 
                         type="datetime-local" 
-                        className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base"
+                        className="w-full px-3 py-3 md:px-4 md:py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-sm md:text-base"
                         value={formData.pickupDate}
                         onChange={e => setFormData({...formData, pickupDate: e.target.value})}
                       />
-                      <div className="flex gap-2 mt-3 text-red-600 text-sm items-start bg-white p-3 rounded-lg border border-red-100">
+                      <div className="flex gap-2 mt-3 text-red-600 text-xs md:text-sm items-start bg-white p-3 rounded-lg border border-red-100">
                         <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
                         <div>ทางตัวแทนจะ confirm วันเวลาที่คุณเลือกมาอีกครั้งใน Line OA ต่อไป</div>
                       </div>
                     </div>
                   )}
 
+                  {/* ที่อยู่ / จุดนัดรับ */}
                   <div>
                     <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                      <MapPin size={18} className="text-[#003781]"/> 
+                      <MapPin size={16} className="text-[#003781]"/> 
                       {deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'ระบุสถานที่นัดรับ'}
                     </label>
                     <textarea 
                       required 
                       rows={4} 
-                      className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base resize-none leading-relaxed" 
+                      className="w-full px-3 py-3 md:px-4 md:py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-sm md:text-base resize-none leading-relaxed" 
                       placeholder={deliveryMethod === 'delivery' 
                         ? "บ้านเลขที่, หมู่บ้าน/คอนโด, ซอย, ถนน\nแขวง/ตำบล, เขต/อำเภอ\nจังหวัด, รหัสไปรษณีย์" 
                         : "ระบุจุดนัดพบให้ชัดเจน เช่น \n- BTS สยาม ทางออก 1\n- เซ็นทรัลลาดพร้าว หน้า Uniqlo\n- บ้านเลขที่... (บ้านตัวแทน/ลูกค้า)"}
@@ -352,8 +357,8 @@ export default function App() {
                     </p>
                   </div>
 
-                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 md:py-5 rounded-xl font-bold text-lg md:text-xl shadow-lg transition-all mt-8 active:scale-95 flex items-center justify-center gap-3">
-                    {loading ? 'กำลังบันทึก...' : <><CheckCircle size={24}/> ยืนยันการรับสิทธิ์</>}
+                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-3.5 md:py-4 rounded-xl font-bold text-base md:text-lg shadow-lg transition-all mt-4 md:mt-8 active:scale-95 flex items-center justify-center gap-3">
+                    {loading ? 'กำลังบันทึก...' : <><CheckCircle size={20}/> ยืนยันการรับสิทธิ์</>}
                   </button>
                 </form>
               </div>
@@ -361,17 +366,17 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: SUCCESS (Email Mockup) */}
+        {/* VIEW: SUCCESS (Responsive & Consistent Width) */}
         {view === 'success' && (
-          <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
-             <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0 p-8 md:p-12 flex flex-col items-center justify-center text-center">
-                <div className="w-24 h-24 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mb-8">
-                  <CheckCircle className="text-green-600 w-12 h-12 md:w-14 md:h-14" />
+          <div className="w-full max-w-2xl mx-auto animate-slide-up pb-10">
+             <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0 p-6 md:p-12 flex flex-col items-center justify-center text-center">
+                <div className="w-20 h-20 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mb-6 md:mb-8">
+                  <CheckCircle className="text-green-600 w-10 h-10 md:w-14 md:h-14" />
                 </div>
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">บันทึกข้อมูลสำเร็จ!</h2>
+                <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-4 md:mb-6">บันทึกข้อมูลสำเร็จ!</h2>
                 
-                <div className="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 mb-10 text-center max-w-xl w-full">
-                  <p className="text-[#003781] leading-relaxed text-lg md:text-xl font-bold">
+                <div className="bg-gray-50 p-6 md:p-8 rounded-xl border border-gray-200 mb-8 md:mb-10 text-center w-full">
+                  <p className="text-[#003781] leading-relaxed text-base md:text-xl font-bold">
                     {finalDeliveryMethod === 'delivery' 
                       ? "ขอบคุณที่ร่วมกิจกรรมกับเรา ทางเราจะจัดส่งของขวัญให้ท่านโดยเร็วที่สุด"
                       : "ขอบคุณที่ร่วมกิจกรรมกับเรา ทางเราจะติดต่อ Confirm วันเวลาสะดวกในการนัดรับของขวัญกับท่านโดยเร็วที่สุด"
@@ -379,12 +384,12 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* ตัวอย่างอีเมลที่จะได้รับ */}
-                <div className="w-full max-w-lg bg-gray-100 p-6 rounded-xl border border-gray-300 mb-10 text-left relative overflow-hidden">
+                {/* ตัวอย่างอีเมล (ย่อส่วนในมือถือ) */}
+                <div className="w-full bg-gray-100 p-4 md:p-6 rounded-xl border border-gray-300 mb-8 text-left relative overflow-hidden">
                    <div className="absolute top-0 left-0 w-full h-1 bg-[#003781]"></div>
                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-1"><Mail size={12}/> ตัวอย่างอีเมลยืนยัน (Simulation)</h4>
-                   <div className="bg-white p-4 rounded shadow-sm text-sm text-gray-700">
-                      <div className="font-bold border-b pb-2 mb-2">Subject: ยืนยันการรับสิทธิ์ ของขวัญ Allianz Gift 2025</div>
+                   <div className="bg-white p-3 md:p-4 rounded shadow-sm text-xs md:text-sm text-gray-700">
+                      <div className="font-bold border-b pb-2 mb-2 truncate">Subject: ยืนยันการรับสิทธิ์ ของขวัญ Allianz Gift 2025</div>
                       <p>เรียนคุณ {formData.name},</p>
                       <p className="mt-2">ขอบคุณที่ร่วมกิจกรรม รายละเอียดของคุณคือ:</p>
                       <ul className="list-disc list-inside mt-2 space-y-1 text-xs text-gray-600">
@@ -392,22 +397,22 @@ export default function App() {
                         <li>การรับของ: <strong>{finalDeliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ'}</strong></li>
                         {finalDeliveryMethod === 'pickup' && <li>เวลานัดหมาย: {new Date(formData.pickupDate).toLocaleString('th-TH')}</li>}
                       </ul>
-                      <p className="mt-4 text-xs text-gray-400">อีเมลนี้จะถูกส่งไปยัง: {formData.email}</p>
+                      <p className="mt-4 text-xs text-gray-400 truncate">ส่งไปยัง: {formData.email}</p>
                    </div>
                 </div>
 
-                <div className="w-full max-w-sm space-y-4">
+                <div className="w-full max-w-sm space-y-3 md:space-y-4">
                   <p className="text-gray-500 text-sm">หากมีข้อสงสัยติดต่อ:</p>
                   <a 
                     href="https://line.me/R/ti/p/@386cqgdi" 
                     target="_blank" 
                     rel="noreferrer"
-                    className="flex items-center justify-center gap-3 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-95"
+                    className="flex items-center justify-center gap-3 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3 md:py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-95 text-sm md:text-base"
                   >
-                    <MessageCircle size={24} />
+                    <MessageCircle size={20} />
                     Line OA นัท อลิอันซ์
                   </a>
-                  <button onClick={() => window.location.reload()} className="w-full bg-gray-100 text-gray-600 hover:text-[#003781] px-10 py-3.5 rounded-xl font-bold hover:bg-gray-200 transition-all text-base">
+                  <button onClick={() => window.location.reload()} className="w-full bg-gray-100 text-gray-600 hover:text-[#003781] px-10 py-3 md:py-3.5 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm md:text-base">
                     กลับสู่หน้าหลัก
                   </button>
                 </div>
