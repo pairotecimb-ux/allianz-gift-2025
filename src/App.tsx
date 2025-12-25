@@ -92,7 +92,6 @@ export default function App() {
       setFinalDeliveryMethod(deliveryMethod);
       setLoading(false);
       setView('success');
-      console.log("Email Template Generated for: " + formData.email);
     } catch (error: any) {
       alert("เกิดข้อผิดพลาด: " + error.message);
       setLoading(false);
@@ -170,7 +169,7 @@ export default function App() {
     <footer className="mt-auto py-8 bg-white border-t border-gray-200 text-center px-4">
       <p className="text-gray-600 text-sm md:text-base">
         © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-        <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์</span>
+        <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v2.0</span>
       </p>
     </footer>
   );
@@ -240,9 +239,10 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (Revised Responsive Layout) */}
+        {/* VIEW: FORM (FIXED SIZE & RESPONSIVE) */}
         {view === 'form' && selectedProduct && (
-          <div className="w-full max-w-4xl mx-auto animate-slide-up pb-10">
+          // ใช้ max-w-3xl เพื่อคุมขนาดให้เท่ากันเสมอ ไม่ว่าจะเลือก Delivery หรือ Pickup
+          <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
             <div className="px-4 md:px-0">
                <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
                  <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
@@ -263,7 +263,7 @@ export default function App() {
               <div className="p-4 md:p-10">
                 <form onSubmit={handleSubmitOrder} className="space-y-4 md:space-y-6">
                   
-                  {/* Delivery Method Toggle - Responsive Grid */}
+                  {/* Delivery Method Toggle - Equal Height */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2 md:mb-3">เลือกวิธีการรับของขวัญ</label>
                     <div className="grid grid-cols-2 gap-3 md:gap-4 h-24 md:h-28">
@@ -284,9 +284,8 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Info Fields - Grid on Desktop, Stack on Mobile */}
+                  {/* Info Fields - Grid Layout */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                      {/* ชื่อ */}
                       <div>
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                           <User size={16} className="text-[#003781]"/> ชื่อ-นามสกุล
@@ -296,7 +295,6 @@ export default function App() {
                           value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                       </div>
 
-                      {/* เบอร์โทร */}
                       <div>
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                           <Phone size={16} className="text-[#003781]"/> เบอร์โทรศัพท์
@@ -307,7 +305,7 @@ export default function App() {
                       </div>
                   </div>
 
-                  {/* อีเมล - Full Width */}
+                  {/* อีเมล */}
                   <div>
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                       <Mail size={16} className="text-[#003781]"/> อีเมล (สำหรับรับยืนยัน)
@@ -318,7 +316,7 @@ export default function App() {
                   </div>
 
                   {deliveryMethod === 'pickup' && (
-                    <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
+                    <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 animate-fade-in">
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
                         <Calendar size={16} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
                       </label>
@@ -366,9 +364,9 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: SUCCESS (Responsive & Consistent Width) */}
+        {/* VIEW: SUCCESS (FIXED WIDTH MATCHING FORM) */}
         {view === 'success' && (
-          <div className="w-full max-w-2xl mx-auto animate-slide-up pb-10">
+          <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
              <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0 p-6 md:p-12 flex flex-col items-center justify-center text-center">
                 <div className="w-20 h-20 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mb-6 md:mb-8">
                   <CheckCircle className="text-green-600 w-10 h-10 md:w-14 md:h-14" />
@@ -384,7 +382,7 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* ตัวอย่างอีเมล (ย่อส่วนในมือถือ) */}
+                {/* ตัวอย่างอีเมล */}
                 <div className="w-full bg-gray-100 p-4 md:p-6 rounded-xl border border-gray-300 mb-8 text-left relative overflow-hidden">
                    <div className="absolute top-0 left-0 w-full h-1 bg-[#003781]"></div>
                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-1"><Mail size={12}/> ตัวอย่างอีเมลยืนยัน (Simulation)</h4>
