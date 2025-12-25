@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar } from 'lucide-react';
 import { db } from './firebase';
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
@@ -27,8 +27,8 @@ export default function App() {
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [loading, setLoading] = useState(false);
-  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); // สถานะการส่งมอบ (ใหม่)
-  const [formData, setFormData] = useState({ name: '', phone: '', address: '' });
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
+  const [formData, setFormData] = useState({ name: '', phone: '', address: '', pickupDate: '' }); // เพิ่ม pickupDate
   
   // Admin States
   const [orders, setOrders] = useState<any[]>([]); 
@@ -82,7 +82,7 @@ export default function App() {
     try {
       await addDoc(collection(db, "orders"), {
         ...formData,
-        deliveryMethod: deliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ', // บันทึกวิธีส่งมอบ
+        deliveryMethod: deliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ', 
         product: selectedProduct.name,
         productId: selectedProduct.id,
         timestamp: Timestamp.now(),
@@ -189,7 +189,8 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Main Content - ปรับ Padding ให้เต็มจอสำหรับมือถือ (px-0) แต่มีขอบสำหรับ PC */}
+      <div className={`flex-grow w-full max-w-7xl mx-auto ${view === 'form' || view === 'success' ? 'px-0 md:px-6' : 'px-4 sm:px-6 lg:px-8'} py-6`}>
         
         {/* VIEW: HOME */}
         {view === 'home' && (
@@ -236,27 +237,29 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (With Toggle for Pickup/Delivery) */}
+        {/* VIEW: FORM (Full Width on Mobile) */}
         {view === 'form' && selectedProduct && (
-          <div className="w-full max-w-lg mx-auto animate-slide-up pb-10">
-            {/* ปุ่มย้อนกลับ */}
-            <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-base">
-              <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
-            </button>
+          <div className="w-full max-w-2xl mx-auto animate-slide-up pb-10">
+            {/* ปุ่มย้อนกลับ - ใส่ Margin ให้ห่างจากขอบจอเล็กน้อยบนมือถือ */}
+            <div className="px-4 md:px-0">
+               <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-base">
+                 <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า
+               </button>
+            </div>
             
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+            <div className="bg-white md:rounded-2xl shadow-none md:shadow-xl overflow-hidden border-t md:border border-gray-200 min-h-screen md:min-h-0">
               {/* Product Header */}
-              <div className="bg-blue-50/50 p-6 border-b flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
-                 <img src={selectedProduct.imageUrl} className="w-32 h-32 rounded-xl object-cover shadow-md bg-white border-4 border-white" />
+              <div className="bg-blue-50/50 p-6 md:p-8 border-b flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
+                 <img src={selectedProduct.imageUrl} className="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md bg-white border-4 border-white" />
                  <div>
                    <div className="text-[#003781] text-sm font-bold uppercase mb-2 tracking-wide">ของขวัญที่คุณเลือก</div>
-                   <h2 className="text-2xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h2>
+                   <h2 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h2>
                    <p className="text-gray-600">{selectedProduct.description}</p>
                  </div>
               </div>
 
               {/* Form Inputs */}
-              <div className="p-6 md:p-8">
+              <div className="p-6 md:p-10">
                 <form onSubmit={handleSubmitOrder} className="space-y-6">
                   
                   {/* Delivery Method Toggle */}
@@ -300,11 +303,31 @@ export default function App() {
                       value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                   </div>
 
-                  {/* Dynamic Address/Location Field */}
+                  {/* Pickup Date & Time (เฉพาะนัดรับ) */}
+                  {deliveryMethod === 'pickup' && (
+                    <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100">
+                      <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
+                        <Calendar size={18} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
+                      </label>
+                      <input 
+                        required 
+                        type="datetime-local" 
+                        className="w-full px-4 py-3.5 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base"
+                        value={formData.pickupDate}
+                        onChange={e => setFormData({...formData, pickupDate: e.target.value})}
+                      />
+                      <div className="flex gap-2 mt-3 text-red-600 text-sm items-start bg-white p-3 rounded-lg border border-red-100">
+                        <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
+                        <div>ทางตัวแทนจะ confirm วันเวลาที่คุณเลือกมาอีกครั้งใน Line OA ต่อไป</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Address / Location */}
                   <div>
                     <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                       <MapPin size={18} className="text-[#003781]"/> 
-                      {deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'สถานที่นัดรับที่สะดวก'}
+                      {deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'ระบุสถานที่นัดรับ'}
                     </label>
                     <textarea 
                       required 
@@ -321,7 +344,7 @@ export default function App() {
                     </p>
                   </div>
 
-                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-8 active:scale-95 flex items-center justify-center gap-3">
+                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 md:py-5 rounded-xl font-bold text-lg md:text-xl shadow-lg transition-all mt-8 active:scale-95 flex items-center justify-center gap-3">
                     {loading ? 'กำลังบันทึก...' : <><CheckCircle size={24}/> ยืนยันการรับสิทธิ์</>}
                   </button>
                 </form>
@@ -330,13 +353,13 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW: SUCCESS */}
+        {/* VIEW: SUCCESS (Full Width on Mobile) */}
         {view === 'success' && (
-          <div className="max-w-xl mx-auto text-center py-12 md:py-20 animate-fade-in">
-            <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
-              <CheckCircle className="text-green-600 w-12 h-12" />
+          <div className="w-full max-w-2xl mx-auto text-center py-12 md:py-20 animate-fade-in px-4">
+            <div className="w-24 h-24 md:w-28 md:h-28 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-8">
+              <CheckCircle className="text-green-600 w-12 h-12 md:w-14 md:h-14" />
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-6">บันทึกข้อมูลสำเร็จ!</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">บันทึกข้อมูลสำเร็จ!</h2>
             
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 mb-10 text-left">
               <p className="text-gray-700 leading-relaxed text-lg">
@@ -443,7 +466,7 @@ export default function App() {
                            <th className="p-3 w-40">ลูกค้า</th>
                            <th className="p-3 w-32">เบอร์โทร</th>
                            <th className="p-3 w-40">สินค้า</th>
-                           <th className="p-3">ที่อยู่ / จุดนัดรับ</th>
+                           <th className="p-3">ที่อยู่ / วันนัดรับ</th>
                            <th className="p-3 w-24 text-center">จัดการ</th>
                          </tr>
                        </thead>
@@ -459,7 +482,14 @@ export default function App() {
                              <td className="p-3 font-medium text-[#003781]">{order.name}</td>
                              <td className="p-3">{order.phone}</td>
                              <td className="p-3"><span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs">{order.product}</span></td>
-                             <td className="p-3 text-gray-600 min-w-[200px] text-xs">{order.address}</td>
+                             <td className="p-3 text-gray-600 min-w-[200px] text-xs">
+                                {order.address}
+                                {order.pickupDate && (
+                                  <div className="mt-1 text-orange-600 font-bold">
+                                    นัด: {new Date(order.pickupDate).toLocaleString('th-TH')}
+                                  </div>
+                                )}
+                             </td>
                              <td className="p-3 text-center flex gap-1 justify-center">
                                <button onClick={() => setEditingOrder(order)} className="p-1.5 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"><Edit size={14}/></button>
                                <button onClick={() => handleDeleteOrder(order.id)} className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200"><Trash2 size={14}/></button>
