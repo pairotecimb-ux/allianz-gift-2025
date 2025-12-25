@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Mail } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Mail, Send } from 'lucide-react';
 import { db } from './firebase';
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
@@ -18,7 +18,7 @@ export default function App() {
   const [view, setView] = useState('home'); 
   const [products, setProducts] = useState<any[]>([]); 
   
-  // Banner Settings State
+  // Banner Settings
   const [bannerSettings, setBannerSettings] = useState({
     bannerUrl: "https://images.unsplash.com/photo-1549417229-aa67d3263c09?w=2000",
     title: "ของขวัญพิเศษ แทนคำขอบคุณ",
@@ -38,7 +38,7 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<any>(null); 
   const [editingOrder, setEditingOrder] = useState<any>(null); 
 
-  // --- 1. โหลดข้อมูลเมื่อเข้าเว็บ ---
+  // --- 1. โหลดข้อมูล ---
   useEffect(() => {
     fetchContent();
   }, []);
@@ -169,7 +169,7 @@ export default function App() {
     <footer className="mt-auto py-8 bg-white border-t border-gray-200 text-center px-4">
       <p className="text-gray-600 text-sm md:text-base">
         © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-        <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v2.0</span>
+        <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v3.0</span>
       </p>
     </footer>
   );
@@ -219,7 +219,7 @@ export default function App() {
                <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
             </div>
 
-            {/* Grid System - Responsive */}
+            {/* Grid System */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
               {products.filter(p => p.active).map((p) => (
                 <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col h-full">
@@ -239,9 +239,9 @@ export default function App() {
            </div>
         )}
 
-        {/* VIEW: FORM (FIXED SIZE & RESPONSIVE) */}
+        {/* VIEW: FORM (FIXED SIZE - แก้ไขให้เท่ากันทุกโหมด) */}
         {view === 'form' && selectedProduct && (
-          // ใช้ max-w-3xl เพื่อคุมขนาดให้เท่ากันเสมอ ไม่ว่าจะเลือก Delivery หรือ Pickup
+          // w-full max-w-3xl และ min-h ทำให้กล่องมีขนาดคงที่
           <div className="w-full max-w-3xl mx-auto animate-slide-up pb-10">
             <div className="px-4 md:px-0">
                <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
@@ -263,7 +263,7 @@ export default function App() {
               <div className="p-4 md:p-10">
                 <form onSubmit={handleSubmitOrder} className="space-y-4 md:space-y-6">
                   
-                  {/* Delivery Method Toggle - Equal Height */}
+                  {/* Delivery Method Toggle - Fix Height */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2 md:mb-3">เลือกวิธีการรับของขวัญ</label>
                     <div className="grid grid-cols-2 gap-3 md:gap-4 h-24 md:h-28">
@@ -305,7 +305,7 @@ export default function App() {
                       </div>
                   </div>
 
-                  {/* อีเมล */}
+                  {/* อีเมล - Full Width */}
                   <div>
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                       <Mail size={16} className="text-[#003781]"/> อีเมล (สำหรับรับยืนยัน)
@@ -315,6 +315,7 @@ export default function App() {
                       value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                   </div>
 
+                  {/* Date Picker (Specific for Pickup) - แต่เราจะใช้ min-h เพื่อกันกล่องกระตุก */}
                   {deliveryMethod === 'pickup' && (
                     <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 animate-fade-in">
                       <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
@@ -382,20 +383,19 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* ตัวอย่างอีเมล */}
-                <div className="w-full bg-gray-100 p-4 md:p-6 rounded-xl border border-gray-300 mb-8 text-left relative overflow-hidden">
-                   <div className="absolute top-0 left-0 w-full h-1 bg-[#003781]"></div>
-                   <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-1"><Mail size={12}/> ตัวอย่างอีเมลยืนยัน (Simulation)</h4>
-                   <div className="bg-white p-3 md:p-4 rounded shadow-sm text-xs md:text-sm text-gray-700">
-                      <div className="font-bold border-b pb-2 mb-2 truncate">Subject: ยืนยันการรับสิทธิ์ ของขวัญ Allianz Gift 2025</div>
-                      <p>เรียนคุณ {formData.name},</p>
-                      <p className="mt-2">ขอบคุณที่ร่วมกิจกรรม รายละเอียดของคุณคือ:</p>
-                      <ul className="list-disc list-inside mt-2 space-y-1 text-xs text-gray-600">
-                        <li>ของขวัญ: <strong>{selectedProduct.name}</strong></li>
-                        <li>การรับของ: <strong>{finalDeliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ'}</strong></li>
-                        {finalDeliveryMethod === 'pickup' && <li>เวลานัดหมาย: {new Date(formData.pickupDate).toLocaleString('th-TH')}</li>}
-                      </ul>
-                      <p className="mt-4 text-xs text-gray-400 truncate">ส่งไปยัง: {formData.email}</p>
+                {/* EMAIL MOCKUP CARD */}
+                <div className="w-full bg-blue-50 p-4 md:p-6 rounded-xl border border-blue-100 mb-8 text-left relative overflow-hidden shadow-sm">
+                   <div className="flex items-center gap-2 mb-3 border-b border-blue-200 pb-2">
+                      <Mail size={18} className="text-[#003781]"/>
+                      <span className="font-bold text-[#003781] text-sm">ระบบได้ส่งอีเมลยืนยันไปที่:</span>
+                   </div>
+                   <div className="text-gray-700 text-sm md:text-base space-y-2">
+                      <div className="font-bold">{formData.email}</div>
+                      <div className="text-xs text-gray-500 italic">(ตัวอย่าง: อีเมลยืนยันการรับสิทธิ์ {selectedProduct.name})</div>
+                   </div>
+                   {/* Decorative Send Icon */}
+                   <div className="absolute right-4 top-4 opacity-10">
+                      <Send size={48} className="text-[#003781]"/>
                    </div>
                 </div>
 
