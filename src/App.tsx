@@ -270,17 +270,17 @@ export default function App() {
                     <div className="grid grid-cols-2 gap-4">
                       <div 
                         onClick={() => setDeliveryMethod('delivery')}
-                        className={`cursor-pointer rounded-xl p-4 border-2 flex flex-col items-center gap-2 transition-all ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                        className={`cursor-pointer rounded-xl p-4 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[100px] ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                       >
-                        <Truck size={24} />
-                        <span className="font-bold text-sm">จัดส่งถึงบ้าน</span>
+                        <Truck size={28} />
+                        <span className="font-bold text-sm text-center">จัดส่งถึงบ้าน</span>
                       </div>
                       <div 
                         onClick={() => setDeliveryMethod('pickup')}
-                        className={`cursor-pointer rounded-xl p-4 border-2 flex flex-col items-center gap-2 transition-all ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                        className={`cursor-pointer rounded-xl p-4 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[100px] ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                       >
-                        <Handshake size={24} />
-                        <span className="font-bold text-sm">สะดวกนัดรับ</span>
+                        <Handshake size={28} />
+                        <span className="font-bold text-sm text-center">สะดวกนัดรับ</span>
                       </div>
                     </div>
                   </div>
