@@ -177,7 +177,8 @@ export default function App() {
   ); 
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col w-full">
+    // FIX: เพิ่ม overflow-x-hidden เพื่อป้องกันหน้าจอขยับซ้ายขวาในมือถือ
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col w-full overflow-x-hidden">
       
       {/* Navbar */}
       <div className="bg-white shadow-sm sticky top-0 z-50 w-full">
@@ -208,7 +209,7 @@ export default function App() {
                     <span className="bg-white/20 backdrop-blur text-xs md:text-sm px-3 py-1 rounded-full mb-3 inline-block border border-white/30 shadow-sm">
                       {bannerSettings.subtitle} 
                     </span>
-                    <h1 className="text-2xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight drop-shadow-lg whitespace-pre-line">
+                    <h1 className="text-2xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight drop-shadow-lg whitespace-pre-line break-words">
                       {bannerSettings.title} 
                     </h1>
                     <button onClick={() => document.getElementById('products-grid')?.scrollIntoView({behavior:'smooth'})} className="bg-white text-[#003781] px-5 py-2 md:px-6 md:py-3 rounded-xl text-sm md:text-base font-bold shadow-lg hover:bg-blue-50 transition active:scale-95">
@@ -315,9 +316,9 @@ export default function App() {
                           value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /> 
                       </div>
 
-                      {/* Pickup Date / Dummy Box Logic */}
+                      {/* Pickup Date / Dummy Box Logic: แก้ปัญหาหน้ากระโดด */}
                       {deliveryMethod === 'pickup' ? (
-                        // 1. กล่องจริง: แสดงเมื่อเลือก "นัดรับ"
+                        // 1. กล่องจริง
                         <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 w-full animate-fade-in">
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
                             <Calendar size={18} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
@@ -335,8 +336,7 @@ export default function App() {
                           </div>
                         </div>
                       ) : (
-                        // 2. กล่องหลอก (Dummy): แสดงเมื่อเลือก "จัดส่ง"
-                        // ใช้ opacity-0 เพื่อให้มองไม่เห็น แต่ยังกินพื้นที่เท่าเดิม
+                        // 2. กล่องหลอก (Dummy) ความสูงเท่ากันแต่ซ่อนไว้
                         <div className="p-4 rounded-xl border border-transparent w-full select-none pointer-events-none opacity-0" aria-hidden="true">
                           <label className="flex items-center gap-2 text-sm font-bold mb-2">
                             <Calendar size={18} /> เลือกวันและเวลานัดรับ
