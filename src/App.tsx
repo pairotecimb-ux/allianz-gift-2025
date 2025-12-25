@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt, FileText } from 'lucide-react';
 import { db } from './firebase'; 
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
@@ -28,7 +28,9 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
-  const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', pickupDate: '' }); 
+  
+  // แก้ไข: เอา email ออก และเพิ่ม remark เข้ามา
+  const [formData, setFormData] = useState({ name: '', phone: '', address: '', pickupDate: '', remark: '' }); 
   const [finalDeliveryMethod, setFinalDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
   
   // Admin States
@@ -177,7 +179,6 @@ export default function App() {
   ); 
 
   return (
-    // FIX: เพิ่ม overflow-x-hidden เพื่อป้องกันหน้าจอขยับซ้ายขวาในมือถือ
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col w-full overflow-x-hidden">
       
       {/* Navbar */}
@@ -223,17 +224,18 @@ export default function App() {
                <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
             </div>
 
-            {/* Grid System */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 w-full">
+            {/* Grid System - ปรับ Mobile ให้เป็น 2 คอลัมน์ (grid-cols-2) */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8 w-full">
               {products.filter(p => p.active).map((p) => (
                 <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full">
                   <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100">
                     <img src={p.imageUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/> 
                   </div>
-                  <div className="p-5 flex flex-col flex-grow">
-                    <h3 className="font-bold text-lg md:text-xl text-gray-900 mb-2 line-clamp-1">{p.name}</h3>
-                    <p className="text-gray-500 text-sm mb-4 flex-grow line-clamp-2">{p.description}</p>
-                    <button onClick={() => { setSelectedProduct(p); setView('form'); }} className="w-full bg-[#003781] text-white py-3 rounded-xl font-bold text-base shadow-blue-900/10 hover:bg-[#002860] hover:shadow-lg transition-all active:scale-95">
+                  {/* ปรับ Padding และขนาดตัวหนังสือให้เล็กลงสำหรับ Mobile */}
+                  <div className="p-3 md:p-5 flex flex-col flex-grow">
+                    <h3 className="font-bold text-sm md:text-xl text-gray-900 mb-1 md:mb-2 line-clamp-1">{p.name}</h3>
+                    <p className="text-gray-500 text-xs md:text-sm mb-3 md:mb-4 flex-grow line-clamp-2">{p.description}</p>
+                    <button onClick={() => { setSelectedProduct(p); setView('form'); }} className="w-full bg-[#003781] text-white py-2 md:py-3 rounded-lg md:rounded-xl font-bold text-xs md:text-base shadow-blue-900/10 hover:bg-[#002860] hover:shadow-lg transition-all active:scale-95">
                       แลกรับสิทธิ์
                     </button> 
                   </div>
@@ -307,18 +309,30 @@ export default function App() {
                           </div>
                       </div>
 
+                      {/* ย้าย Address ขึ้นมาไว้ตรงนี้ (ตัด Email ออกแล้ว) */}
                       <div>
-                          <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                          <TiltedMailIcon size={18} /> อีเมล (สำหรับรับข้อมูล)
-                          </label>
-                          <input required type="email" className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" 
-                          placeholder="example@mail.com" 
-                          value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} /> 
+                        <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
+                          <MapPin size={18} className="text-[#003781]"/> 
+                          {deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'ระบุสถานที่นัดรับ'} 
+                        </label>
+                        <textarea 
+                          required 
+                          rows={3} 
+                          className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base resize-none leading-relaxed" 
+                          placeholder={deliveryMethod === 'delivery' 
+                            ? "บ้านเลขที่, หมู่บ้าน/คอนโด, ซอย, ถนน\nแขวง/ตำบล, เขต/อำเภอ\nจังหวัด, รหัสไปรษณีย์" 
+                            : "ระบุจุดนัดพบให้ชัดเจน เช่น \n- BTS สยาม ทางออก 1\n- เซ็นทรัลลาดพร้าว หน้า Uniqlo\n- บ้านเลขที่... (บ้านตัวแทน/ลูกค้า)"}
+                          value={formData.address} 
+                          onChange={e => setFormData({...formData, address: e.target.value})} 
+                        />
+                        <p className="text-xs text-gray-400 mt-2 text-right">
+                          {deliveryMethod === 'delivery' ? '*กรุณาระบุให้ครบถ้วนเพื่อความรวดเร็วในการจัดส่ง' : '*เจ้าหน้าที่จะติดต่อนัดหมายเวลาอีกครั้ง'} 
+                        </p>
                       </div>
 
-                      {/* Pickup Date / Dummy Box Logic: แก้ปัญหาหน้ากระโดด */}
+                      {/* Pickup Date / Remark : สลับเอา Address ขึ้นไปแล้ว เอา Remark มาแทนที่ Dummy */}
                       {deliveryMethod === 'pickup' ? (
-                        // 1. กล่องจริง
+                        // 1. กล่องเลือกวัน (นัดรับ)
                         <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 w-full animate-fade-in">
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
                             <Calendar size={18} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
@@ -336,41 +350,24 @@ export default function App() {
                           </div>
                         </div>
                       ) : (
-                        // 2. กล่องหลอก (Dummy) ความสูงเท่ากันแต่ซ่อนไว้
-                        <div className="p-4 rounded-xl border border-transparent w-full select-none pointer-events-none opacity-0" aria-hidden="true">
-                          <label className="flex items-center gap-2 text-sm font-bold mb-2">
-                            <Calendar size={18} /> เลือกวันและเวลานัดรับ
+                        // 2. กล่อง Remark (จัดส่ง) - ใช้พื้นที่แทน Dummy เดิม
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 w-full animate-fade-in">
+                          <label className="flex items-center gap-2 text-sm font-bold text-gray-600 mb-2">
+                            <FileText size={18} /> หมายเหตุ (ถ้ามี)
                           </label>
-                          <div className="w-full px-4 py-3 rounded-xl border border-transparent text-base">
-                             &nbsp; 
-                          </div>
-                          <div className="flex gap-2 mt-3 text-xs md:text-sm items-start p-3 rounded-lg border border-transparent">
-                           <div className="font-bold whitespace-nowrap">*หมายเหตุ:</div>
-                            <div>ทางตัวแทนจะ confirm วันเวลาที่คุณเลือกมาอีกครั้งใน Line OA ต่อไป</div>
+                          <input 
+                            className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base"
+                            placeholder="ฝากข้อความถึงผู้ส่ง (ไม่ระบุก็ได้)"
+                            value={formData.remark}
+                            onChange={e => setFormData({...formData, remark: e.target.value})}
+                          />
+                           <div className="flex gap-2 mt-3 text-gray-400 text-xs md:text-sm items-start p-3">
+                           <div className="font-bold whitespace-nowrap"></div>
+                            <div>&nbsp;</div>
                           </div>
                         </div>
                       )}
 
-                      {/* Address */}
-                      <div>
-                        <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
-                          <MapPin size={18} className="text-[#003781]"/> 
-                          {deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'ระบุสถานที่นัดรับ'} 
-                        </label>
-                        <textarea 
-                          required 
-                          rows={4} 
-                          className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base resize-none leading-relaxed" 
-                          placeholder={deliveryMethod === 'delivery' 
-                            ? "บ้านเลขที่, หมู่บ้าน/คอนโด, ซอย, ถนน\nแขวง/ตำบล, เขต/อำเภอ\nจังหวัด, รหัสไปรษณีย์" 
-                            : "ระบุจุดนัดพบให้ชัดเจน เช่น \n- BTS สยาม ทางออก 1\n- เซ็นทรัลลาดพร้าว หน้า Uniqlo\n- บ้านเลขที่... (บ้านตัวแทน/ลูกค้า)"}
-                          value={formData.address} 
-                          onChange={e => setFormData({...formData, address: e.target.value})} 
-                        />
-                        <p className="text-xs text-gray-400 mt-2 text-right">
-                          {deliveryMethod === 'delivery' ? '*กรุณาระบุให้ครบถ้วนเพื่อความรวดเร็วในการจัดส่ง' : '*เจ้าหน้าที่จะติดต่อนัดหมายเวลาอีกครั้ง'} 
-                        </p>
-                      </div>
                   </div>
 
                   <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-8 active:scale-95 flex items-center justify-center gap-3">
@@ -422,12 +419,26 @@ export default function App() {
                         <span className="text-gray-500">เบอร์โทร:</span>
                         <span className="font-bold text-right">{formData.phone}</span>
                       </div>
+                      
+                      {/* เพิ่มแสดงที่อยู่ในหน้า Summary */}
+                      <div className="flex justify-between items-start">
+                        <span className="text-gray-500 whitespace-nowrap">ที่อยู่/นัดรับ:</span>
+                        <span className="font-bold text-right ml-4">{formData.address}</span>
+                      </div>
+
                       {finalDeliveryMethod === 'pickup' && (
                         <div className="flex justify-between">
                           <span className="text-gray-500">เวลานัดหมาย:</span>
                           <span className="font-bold text-right text-orange-600">{new Date(formData.pickupDate).toLocaleString('th-TH')}</span> 
                         </div>
                       )}
+                      {formData.remark && (
+                         <div className="flex justify-between">
+                           <span className="text-gray-500">หมายเหตุ:</span>
+                           <span className="font-bold text-right text-gray-600">{formData.remark}</span> 
+                         </div>
+                      )}
+
                       <div className="pt-2 border-t border-gray-200 mt-2 text-xs text-gray-400 text-center">
                         รหัสอ้างอิง: {new Date().getTime().toString().slice(-6)}
                       </div>
@@ -549,6 +560,7 @@ export default function App() {
                              <td className="p-3"><span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs">{order.product}</span></td>
                              <td className="p-3 text-gray-600 min-w-[200px] text-xs">
                                 {order.address}
+                                {order.remark && <div className="text-gray-400 italic">Note: {order.remark}</div>}
                                 {order.pickupDate && (
                                   <div className="mt-1 text-orange-600 font-bold">
                                     นัด: {new Date(order.pickupDate).toLocaleString('th-TH')}
@@ -675,8 +687,3 @@ export default function App() {
     </div>
   );
 }
-
-// Icon for Mail
-const TiltedMailIcon = ({size}: {size: number}) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-mail"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-);
