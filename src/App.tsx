@@ -91,22 +91,50 @@ export default function App() {
     setLoading(false); 
   };
 
-  // --- Function แปลงไฟล์รูปเป็น Base64 ---
-  const handleImageUpload = (e: any) => {
-    const file = e.target.files[0];
-    if (file) {
-      // เช็คขนาดไฟล์ (แนะนำไม่เกิน 500KB - 1MB เพื่อไม่ให้ DB หนัก)
-      if (file.size > 1024 * 1024) {
-        alert("ขออภัย ไฟล์รูปใหญ่เกิน 1MB อาจทำให้เว็บช้า กรุณาลดขนาดรูปก่อนครับ");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setEditingProduct({ ...editingProduct, imageUrl: reader.result });
+// --- Function แปลงไฟล์รูป + ย่อรูปอัตโนมัติ (แก้ปัญหาไฟล์ใหญ่เกิน) ---
+const handleImageUpload = (e: any) => {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (event: any) => {
+      const img = new Image();
+      img.onload = () => {
+        // สร้าง Canvas เพื่อย่อรูป
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // กำหนดขนาดสูงสุด (เช่นกว้างไม่เกิน 800px ก็พอชัดแล้วครับ)
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        // แปลงเป็น Base64 แบบบีบอัด (JPEG quality 0.7) เพื่อให้ไฟล์เล็กจิ๋ว
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        setEditingProduct({ ...editingProduct, imageUrl: dataUrl });
       };
-      reader.readAsDataURL(file);
-    }
-  };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+};
 
   // --- 2. ฟังก์ชันลูกค้า ---
   const handleSubmitOrder = async (e: any) => {
