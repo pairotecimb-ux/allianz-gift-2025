@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt, FileText, ZoomIn, Tag, AlertCircle } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt, FileText, ZoomIn, Tag, Search, Download, Clock, CheckSquare } from 'lucide-react';
 import { db } from './firebase'; 
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
 // --- รหัสผ่านเข้าหลังบ้าน ---
 const ADMIN_PASSWORD = "8787"; 
 
-// --- ข้อมูลสินค้าเริ่มต้น (เพิ่ม field ใหม่) ---
+// --- ข้อมูลสินค้าเริ่มต้น ---
 const INITIAL_PRODUCTS = [
   { id: '1', code: "BAG-001", name: "กระเป๋าเดินทาง 20 นิ้ว", description: "สี Midnight Blue (Limited)", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true, isNew: true, stock: 10 },
   { id: '2', code: "SHIRT-L", name: "เสื้อฮาวายลายช้าง (L)", description: "ผ้าไหมอิตาลี ใส่สบาย", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true, isNew: false, stock: 5 },
@@ -26,7 +26,7 @@ export default function App() {
   });
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
-  const [viewingImage, setViewingImage] = useState<string | null>(null); // State สำหรับดูรูปใหญ่
+  const [viewingImage, setViewingImage] = useState<string | null>(null); 
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
   
@@ -35,6 +35,8 @@ export default function App() {
   
   // Admin States
   const [orders, setOrders] = useState<any[]>([]);
+  const [filteredOrders, setFilteredOrders] = useState<any[]>([]); // สำหรับ Search
+  const [searchTerm, setSearchTerm] = useState(''); // คำค้นหา
   const [adminPassInput, setAdminPassInput] = useState(''); 
   const [adminTab, setAdminTab] = useState('orders'); 
   const [editingProduct, setEditingProduct] = useState<any>(null); 
@@ -57,6 +59,21 @@ export default function App() {
   useEffect(() => {
     fetchContent();
   }, []); 
+
+  // --- Search Logic ---
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredOrders(orders);
+    } else {
+      const lowerTerm = searchTerm.toLowerCase();
+      const filtered = orders.filter(o => 
+        o.name?.toLowerCase().includes(lowerTerm) ||
+        o.phone?.includes(lowerTerm) ||
+        o.productCode?.toLowerCase().includes(lowerTerm)
+      );
+      setFilteredOrders(filtered);
+    }
+  }, [searchTerm, orders]);
 
   const fetchContent = async () => {
     setLoading(true);
@@ -91,57 +108,90 @@ export default function App() {
     setLoading(false); 
   };
 
-// --- Function แปลงไฟล์รูป + ย่อรูปอัตโนมัติ (แก้ปัญหาไฟล์ใหญ่เกิน) ---
-const handleImageUpload = (e: any) => {
-  const file = e.target.files[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = (event: any) => {
-      const img = new Image();
-      img.onload = () => {
-        // สร้าง Canvas เพื่อย่อรูป
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        
-        // กำหนดขนาดสูงสุด (เช่นกว้างไม่เกิน 800px ก็พอชัดแล้วครับ)
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 800;
+  // --- Function แปลงไฟล์รูป + ย่อรูปอัตโนมัติ (ตัวเทพ) ---
+  const handleImageUpload = (e: any) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event: any) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
 
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
           }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-
-        // แปลงเป็น Base64 แบบบีบอัด (JPEG quality 0.7) เพื่อให้ไฟล์เล็กจิ๋ว
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        setEditingProduct({ ...editingProduct, imageUrl: dataUrl });
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          setEditingProduct({ ...editingProduct, imageUrl: dataUrl });
+        };
+        img.src = event.target.result;
       };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-};
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // --- Export CSV Function ---
+  const exportToCSV = () => {
+    if (orders.length === 0) {
+        alert("ไม่มีข้อมูลออเดอร์ให้ Export ครับ");
+        return;
+    }
+    
+    // Header ของ CSV
+    const headers = ["วันที่", "สถานะ", "ประเภทการรับ", "ชื่อลูกค้า", "เบอร์โทร", "สินค้า", "รหัสสินค้า (Code)", "ที่อยู่ / จุดนัดรับ", "วันนัดรับ", "หมายเหตุ"];
+    
+    // ข้อมูลในแต่ละแถว
+    const csvContent = [
+      headers.join(","), 
+      ...orders.map(o => {
+        // เตรียมข้อมูลและจัดการตัวอักษรพิเศษที่อาจทำลาย CSV (เช่น ลูกน้ำ หรือ การขึ้นบรรทัดใหม่)
+        const date = o.timestamp?.toDate().toLocaleDateString('th-TH') || '-';
+        const status = o.status === 'completed' ? 'จัดส่งแล้ว/เสร็จสิ้น' : 'รอตรวจสอบ';
+        const type = o.deliveryMethod || '-';
+        const name = `"${o.name || ''}"`; // ใส่ "" ครอบเพื่อกันลูกน้ำในชื่อ
+        const phone = `"${o.phone || ''}"`; // ใส่ "" กัน Excel มองเป็นตัวเลขแล้วตัด 0 นำหน้า
+        const product = `"${o.product || ''}"`;
+        const code = `"${o.productCode || ''}"`;
+        const address = `"${(o.address || '').replace(/\n/g, ' ')}"`; // เปลี่ยนขึ้นบรรทัดใหม่เป็นเว้นวรรค
+        const pickupDate = o.pickupDate ? new Date(o.pickupDate).toLocaleString('th-TH') : '-';
+        const remark = `"${o.remark || ''}"`;
+
+        return [date, status, type, name, phone, product, code, address, pickupDate, remark].join(",");
+      })
+    ].join("\n");
+
+    // สร้างไฟล์และสั่งดาวน์โหลด (เพิ่ม BOM \uFEFF เพื่อให้ Excel อ่านภาษาไทยออก)
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `orders_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // --- 2. ฟังก์ชันลูกค้า ---
   const handleSubmitOrder = async (e: any) => {
     e.preventDefault();
     setLoading(true); 
     try {
-        // เช็คสต็อกอีกรอบก่อนบันทึก
         const productRef = doc(db, "products", selectedProduct.id);
         const productSnap = await getDoc(productRef);
         
@@ -151,11 +201,10 @@ const handleImageUpload = (e: any) => {
                 alert("เสียใจด้วย สินค้าชิ้นนี้หมดพอดีครับ");
                 setLoading(false);
                 setView('home');
-                fetchContent(); // รีเฟรชข้อมูล
+                fetchContent();
                 return;
             }
 
-            // 1. บันทึกออเดอร์
             await addDoc(collection(db, "orders"), {
                 ...formData,
                 deliveryMethod: deliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ', 
@@ -163,10 +212,9 @@ const handleImageUpload = (e: any) => {
                 productId: selectedProduct.id,
                 productCode: selectedProduct.code || '-',
                 timestamp: Timestamp.now(),
-                status: 'pending'
+                status: 'pending' // Default status
             });
 
-            // 2. ตัดสต็อก
             await updateDoc(productRef, {
                 stock: currentStock - 1
             });
@@ -174,7 +222,7 @@ const handleImageUpload = (e: any) => {
             setFinalDeliveryMethod(deliveryMethod); 
             setLoading(false);
             setView('success');
-            fetchContent(); // อัปเดตหน้าสินค้าใหม่ให้สต็อกลดลง
+            fetchContent();
         }
     } catch (error: any) {
       alert("เกิดข้อผิดพลาด: " + error.message);
@@ -197,14 +245,26 @@ const handleImageUpload = (e: any) => {
   const fetchOrders = async () => {
     const q = query(collection(db, "orders"), orderBy("timestamp", "desc"));
     const querySnapshot = await getDocs(q); 
-    setOrders(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    const orderList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setOrders(orderList);
+    setFilteredOrders(orderList); // Set init filtered
+  };
+
+  // Toggle Status Function
+  const handleToggleStatus = async (order: any) => {
+    const newStatus = order.status === 'completed' ? 'pending' : 'completed';
+    // Optimistic Update (อัปเดตหน้าจอทันทีเพื่อให้รู้สึกเร็ว)
+    const updatedOrders = orders.map(o => o.id === order.id ? {...o, status: newStatus} : o);
+    setOrders(updatedOrders);
+    
+    // Update DB
+    await updateDoc(doc(db, "orders", order.id), { status: newStatus });
   };
 
   const handleSaveProduct = async (e: any) => {
     e.preventDefault();
     if (!editingProduct) return;
     try {
-      // แปลง stock เป็น number
       const productData = {
           ...editingProduct,
           stock: parseInt(editingProduct.stock) || 0,
@@ -262,13 +322,12 @@ const handleImageUpload = (e: any) => {
       <div className="container mx-auto px-4">
         <p className="text-gray-600 text-sm md:text-base">
           © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v5.0 (Ultimate)</span> 
+          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v6.0 (Ultimate Plus)</span> 
         </p>
       </div>
     </footer>
   ); 
 
-  // --- Component: Image Modal (ดูรูปใหญ่) ---
   const ImageModal = () => {
       if (!viewingImage) return null;
       return (
@@ -346,11 +405,9 @@ const handleImageUpload = (e: any) => {
                     {/* Image Area */}
                     <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100 cursor-zoom-in" onClick={() => setViewingImage(p.imageUrl)}>
                       <img src={p.imageUrl} className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}/> 
-                      {/* ไอคอนแว่นขยายเมื่อเอาเมาส์ชี้ */}
                       <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                           <ZoomIn className="text-white drop-shadow-md" size={32}/>
                       </div>
-                      {/* ป้ายสินค้าหมด */}
                       {isOutOfStock && (
                           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                               <span className="bg-black/70 text-white px-3 py-1 rounded-lg text-sm font-bold">สินค้าหมด</span>
@@ -359,7 +416,6 @@ const handleImageUpload = (e: any) => {
                     </div>
 
                     <div className="p-3 md:p-5 flex flex-col flex-grow">
-                      {/* Product Code */}
                       <div className="text-[10px] md:text-xs text-gray-400 mb-1 font-mono uppercase tracking-wide">
                           Code: {p.code || '-'}
                       </div>
@@ -367,7 +423,6 @@ const handleImageUpload = (e: any) => {
                       <h3 className="font-bold text-sm md:text-xl text-gray-900 mb-1 md:mb-2 line-clamp-1">{p.name}</h3>
                       <p className="text-gray-500 text-xs md:text-sm mb-2 flex-grow line-clamp-2">{p.description}</p>
                       
-                      {/* Stock Display */}
                       <div className="flex justify-between items-center mb-3">
                          <span className={`text-xs font-bold ${isOutOfStock ? 'text-red-500' : 'text-green-600'}`}>
                              {isOutOfStock ? 'หมดแล้ว' : `เหลือ ${p.stock} ชิ้น`}
@@ -671,6 +726,26 @@ const handleImageUpload = (e: any) => {
                {/* TAB: ORDERS */}
                {adminTab === 'orders' && (
                  <div className="w-full">
+                    
+                    {/* Toolbar: Search + Export */}
+                    <div className="flex flex-col md:flex-row gap-4 mb-4 justify-between items-center bg-gray-50 p-3 rounded-lg border">
+                        <div className="relative w-full md:w-96">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                            <input 
+                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="ค้นหาชื่อ, เบอร์โทร, รหัสสินค้า..." 
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <button 
+                            onClick={exportToCSV}
+                            className="w-full md:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition"
+                        >
+                            <Download size={18}/> Export Excel
+                        </button>
+                    </div>
+
                     {/* Modal แก้ไขออเดอร์ */}
                     {editingOrder && (
                       <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
@@ -697,39 +772,54 @@ const handleImageUpload = (e: any) => {
 
                    {/* ตารางแบบเลื่อนได้ */}
                    <div className="overflow-x-auto w-full">
-                     <table className="w-full text-left text-sm min-w-[800px]">
+                     <table className="w-full text-left text-sm min-w-[900px]">
                        <thead className="bg-gray-50 text-gray-700 font-bold border-b">
                          <tr>
-                           <th className="p-3 w-32">วันที่</th>
-                           <th className="p-3 w-28">ประเภท</th>
-                           <th className="p-3 w-40">ลูกค้า</th>
-                           <th className="p-3 w-32">เบอร์โทร</th>
+                           <th className="p-3 w-10 text-center">สถานะ</th>
+                           <th className="p-3 w-28">วันที่</th>
+                           <th className="p-3 w-24">ประเภท</th>
+                           <th className="p-3 w-36">ลูกค้า</th>
+                           <th className="p-3 w-28">เบอร์โทร</th>
                            <th className="p-3 w-40">สินค้า (Code)</th>
-                           <th className="p-3">ที่อยู่ / วันนัดรับ</th>
-                           <th className="p-3 w-24 text-center">จัดการ</th>
+                           <th className="p-3">ที่อยู่ / นัดรับ</th>
+                           <th className="p-3 w-20 text-center">Action</th>
                          </tr>
                        </thead>
                        <tbody className="divide-y">
-                         {orders.map((order) => (
-                           <tr key={order.id} className="hover:bg-gray-50 text-gray-800">
-                             <td className="p-3 text-gray-500 whitespace-nowrap">{order.timestamp?.toDate().toLocaleDateString('th-TH')}</td>
+                         {filteredOrders.map((order) => {
+                           const isCompleted = order.status === 'completed';
+                           return (
+                           <tr key={order.id} className={`hover:bg-gray-50 text-gray-800 ${isCompleted ? 'bg-gray-50/50' : ''}`}>
+                             <td className="p-3 text-center">
+                                <button 
+                                    onClick={() => handleToggleStatus(order)}
+                                    title={isCompleted ? "เสร็จสิ้นแล้ว" : "รอดำเนินการ"}
+                                    className={`transition-all ${isCompleted ? 'text-green-500' : 'text-gray-300 hover:text-green-400'}`}
+                                >
+                                    {isCompleted ? <CheckSquare size={24}/> : <div className="w-6 h-6 border-2 border-gray-300 rounded hover:border-green-400"></div>}
+                                </button>
+                             </td>
+                             <td className="p-3 text-gray-500 whitespace-nowrap text-xs">
+                                {order.timestamp?.toDate().toLocaleDateString('th-TH')}
+                                <div className="text-[10px] opacity-70">{order.timestamp?.toDate().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})}</div>
+                             </td>
                              <td className="p-3">
-                               <span className={`px-2 py-1 rounded text-xs font-bold ${order.deliveryMethod === 'นัดรับ' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                               <span className={`px-2 py-1 rounded text-[10px] font-bold ${order.deliveryMethod === 'นัดรับ' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
                                  {order.deliveryMethod || 'จัดส่ง'}
                                </span>
                              </td>
                              <td className="p-3 font-medium text-[#003781]">{order.name}</td>
-                             <td className="p-3">{order.phone}</td>
+                             <td className="p-3 text-gray-600">{order.phone}</td>
                              <td className="p-3">
                                  <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs block truncate w-fit max-w-[150px]">{order.product}</span>
                                  <span className="text-[10px] text-gray-400 font-mono mt-1">Code: {order.productCode}</span>
                              </td>
                              <td className="p-3 text-gray-600 min-w-[200px] text-xs">
                                 {order.address}
-                                {order.remark && <div className="text-gray-400 italic">Note: {order.remark}</div>}
+                                {order.remark && <div className="text-gray-400 italic mt-1">Note: {order.remark}</div>}
                                 {order.pickupDate && (
-                                  <div className="mt-1 text-orange-600 font-bold">
-                                    นัด: {new Date(order.pickupDate).toLocaleString('th-TH')}
+                                  <div className="mt-1 text-orange-600 font-bold flex items-center gap-1">
+                                    <Clock size={10}/> นัด: {new Date(order.pickupDate).toLocaleString('th-TH')}
                                   </div>
                                 )}
                              </td>
@@ -738,10 +828,10 @@ const handleImageUpload = (e: any) => {
                                <button onClick={() => handleDeleteOrder(order.id)} className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200"><Trash2 size={14}/></button>
                              </td>
                            </tr>
-                       ))}
+                         )})}
                        </tbody>
                      </table>
-                     {orders.length === 0 && <div className="p-10 text-center text-gray-400 flex flex-col items-center gap-2"><Package size={40}/> ยังไม่มีรายการสั่งซื้อ</div>} 
+                     {filteredOrders.length === 0 && <div className="p-10 text-center text-gray-400 flex flex-col items-center gap-2"><Package size={40}/> ไม่พบข้อมูลออเดอร์</div>} 
                    </div>
                  </div>
                )}
@@ -788,15 +878,9 @@ const handleImageUpload = (e: any) => {
 
                             <div className="border p-3 rounded-lg bg-gray-50">
                                 <label className="text-xs text-gray-500 font-bold mb-2 block">รูปสินค้า (อัปโหลด หรือ ใส่ลิงก์)</label>
-                                
-                                {/* 1. เลือกไฟล์ (แปลงเป็น Base64) */}
                                 <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full mb-2 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-                                
                                 <div className="text-center text-gray-400 text-xs my-1">- หรือ -</div>
-                                
-                                {/* 2. ใส่ลิงก์ (เผื่ออยากใช้แบบเดิม) */}
                                 <input className="w-full p-2 border rounded text-gray-900 text-sm" placeholder="วางลิงก์รูปภาพ (URL) ที่นี่..." value={editingProduct.imageUrl || ''} onChange={e => setEditingProduct({...editingProduct, imageUrl: e.target.value})} />
-                                
                                 {editingProduct.imageUrl && (
                                     <div className="mt-2 text-center">
                                         <img src={editingProduct.imageUrl} className="h-20 mx-auto rounded border bg-white object-contain"/>
