@@ -4,7 +4,7 @@ import { db } from './firebase';
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
 // --- รหัสผ่านเข้าหลังบ้าน ---
-const ADMIN_PASSWORD = "8787"; 
+const ADMIN_PASSWORD = "4242"; 
 
 // --- ข้อมูลสินค้าเริ่มต้น (เพิ่ม options) ---
 const INITIAL_PRODUCTS = [
