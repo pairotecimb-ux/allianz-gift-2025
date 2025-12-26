@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt, FileText } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt, FileText, ZoomIn, Tag, AlertCircle } from 'lucide-react';
 import { db } from './firebase'; 
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
 // --- รหัสผ่านเข้าหลังบ้าน ---
 const ADMIN_PASSWORD = "8787"; 
 
-// --- ข้อมูลสินค้าเริ่มต้น ---
+// --- ข้อมูลสินค้าเริ่มต้น (เพิ่ม field ใหม่) ---
 const INITIAL_PRODUCTS = [
-  { id: '1', name: "กระเป๋าเดินทาง 20 นิ้ว", description: "สี Midnight Blue (Limited)", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true },
-  { id: '2', name: "เสื้อฮาวายลายช้าง (L)", description: "ผ้าไหมอิตาลี ใส่สบาย", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true },
-  { id: '3', name: "ชุด Gift Set รักษ์โลก", description: "แก้วน้ำ + ถุงผ้า", imageUrl: "https://images.unsplash.com/photo-1542435503-956c469947f6?w=1000", active: true },
+  { id: '1', code: "BAG-001", name: "กระเป๋าเดินทาง 20 นิ้ว", description: "สี Midnight Blue (Limited)", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true, isNew: true, stock: 10 },
+  { id: '2', code: "SHIRT-L", name: "เสื้อฮาวายลายช้าง (L)", description: "ผ้าไหมอิตาลี ใส่สบาย", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true, isNew: false, stock: 5 },
+  { id: '3', code: "GIFT-SET", name: "ชุด Gift Set รักษ์โลก", description: "แก้วน้ำ + ถุงผ้า", imageUrl: "https://images.unsplash.com/photo-1542435503-956c469947f6?w=1000", active: true, isNew: true, stock: 0 },
 ];
 
 export default function App() {
@@ -26,6 +26,7 @@ export default function App() {
   });
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
+  const [viewingImage, setViewingImage] = useState<string | null>(null); // State สำหรับดูรูปใหญ่
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
   
@@ -39,8 +40,7 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<any>(null); 
   const [editingOrder, setEditingOrder] = useState<any>(null);
 
-  // --- FIX 1: Force Viewport for Mobile ---
-  // บังคับให้หน้าจอพอดีกับมือถือ (แก้ปัญหาหน้าจอใหญ่/ต้องซูม)
+  // --- FIX Viewport ---
   useEffect(() => {
     const metaId = 'viewport-meta-tag-force';
     let meta = document.getElementById(metaId) as HTMLMetaElement;
@@ -91,22 +91,63 @@ export default function App() {
     setLoading(false); 
   };
 
+  // --- Function แปลงไฟล์รูปเป็น Base64 ---
+  const handleImageUpload = (e: any) => {
+    const file = e.target.files[0];
+    if (file) {
+      // เช็คขนาดไฟล์ (แนะนำไม่เกิน 500KB - 1MB เพื่อไม่ให้ DB หนัก)
+      if (file.size > 1024 * 1024) {
+        alert("ขออภัย ไฟล์รูปใหญ่เกิน 1MB อาจทำให้เว็บช้า กรุณาลดขนาดรูปก่อนครับ");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditingProduct({ ...editingProduct, imageUrl: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // --- 2. ฟังก์ชันลูกค้า ---
   const handleSubmitOrder = async (e: any) => {
     e.preventDefault();
     setLoading(true); 
     try {
-      await addDoc(collection(db, "orders"), {
-        ...formData,
-        deliveryMethod: deliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ', 
-        product: selectedProduct.name,
-        productId: selectedProduct.id,
-        timestamp: Timestamp.now(),
-        status: 'pending'
-      });
-      setFinalDeliveryMethod(deliveryMethod); 
-      setLoading(false);
-      setView('success');
+        // เช็คสต็อกอีกรอบก่อนบันทึก
+        const productRef = doc(db, "products", selectedProduct.id);
+        const productSnap = await getDoc(productRef);
+        
+        if (productSnap.exists()) {
+            const currentStock = productSnap.data().stock || 0;
+            if (currentStock <= 0) {
+                alert("เสียใจด้วย สินค้าชิ้นนี้หมดพอดีครับ");
+                setLoading(false);
+                setView('home');
+                fetchContent(); // รีเฟรชข้อมูล
+                return;
+            }
+
+            // 1. บันทึกออเดอร์
+            await addDoc(collection(db, "orders"), {
+                ...formData,
+                deliveryMethod: deliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ', 
+                product: selectedProduct.name,
+                productId: selectedProduct.id,
+                productCode: selectedProduct.code || '-',
+                timestamp: Timestamp.now(),
+                status: 'pending'
+            });
+
+            // 2. ตัดสต็อก
+            await updateDoc(productRef, {
+                stock: currentStock - 1
+            });
+
+            setFinalDeliveryMethod(deliveryMethod); 
+            setLoading(false);
+            setView('success');
+            fetchContent(); // อัปเดตหน้าสินค้าใหม่ให้สต็อกลดลง
+        }
     } catch (error: any) {
       alert("เกิดข้อผิดพลาด: " + error.message);
       setLoading(false);
@@ -135,11 +176,19 @@ export default function App() {
     e.preventDefault();
     if (!editingProduct) return;
     try {
+      // แปลง stock เป็น number
+      const productData = {
+          ...editingProduct,
+          stock: parseInt(editingProduct.stock) || 0,
+          code: editingProduct.code || '',
+          isNew: editingProduct.isNew || false
+      };
+
       const isNew = !editingProduct.id;
       if (isNew) { 
-        await addDoc(collection(db, "products"), { ...editingProduct, active: true });
+        await addDoc(collection(db, "products"), { ...productData, active: true });
       } else {
-        const { id, ...data } = editingProduct;
+        const { id, ...data } = productData;
         await updateDoc(doc(db, "products", id), data); 
       }
       setEditingProduct(null);
@@ -185,19 +234,32 @@ export default function App() {
       <div className="container mx-auto px-4">
         <p className="text-gray-600 text-sm md:text-base">
           © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v4.0 (Final)</span> 
+          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v5.0 (Ultimate)</span> 
         </p>
       </div>
     </footer>
   ); 
 
+  // --- Component: Image Modal (ดูรูปใหญ่) ---
+  const ImageModal = () => {
+      if (!viewingImage) return null;
+      return (
+          <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 animate-fade-in" onClick={() => setViewingImage(null)}>
+              <button className="absolute top-4 right-4 text-white bg-white/20 rounded-full p-2 hover:bg-white/40">
+                  <X size={24} />
+              </button>
+              <img src={viewingImage} className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()}/>
+          </div>
+      );
+  };
+
   return (
-    // FIX: overflow-x-hidden ที่ Root เพื่อป้องกันการเลื่อนซ้ายขวา
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col w-full overflow-x-hidden max-w-[100vw]">
       
+      <ImageModal />
+
       {/* Navbar */}
       <div className="bg-white shadow-sm sticky top-0 z-50 w-full">
-        {/* FIX: เปลี่ยน container เป็น w-full px-4 เพื่อความชัวร์ในมือถือ */}
         <div className="w-full max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div onClick={() => setView('home')} className="cursor-pointer text-[#003781] font-bold text-xl md:text-2xl flex items-center gap-2">
             Allianz <span className="text-gray-400 font-light">Ayudhya</span> 
@@ -212,7 +274,6 @@ export default function App() {
 
       {/* Main Content */}
       <div className="flex-grow w-full py-6">
-        {/* FIX: ใช้ w-full max-w-7xl แทน container เพื่อให้เต็มจอในมือถือแต่ไม่ล้น */}
         <div className="w-full max-w-7xl mx-auto px-4 md:px-6">
         
         {/* VIEW: HOME */}
@@ -226,7 +287,6 @@ export default function App() {
                     <span className="bg-white/20 backdrop-blur text-xs md:text-sm px-3 py-1 rounded-full mb-3 inline-block border border-white/30 shadow-sm">
                       {bannerSettings.subtitle} 
                     </span>
-                    {/* FIX: ปรับขนาดตัวหนังสือ Title ใน Mobile ให้เล็กลง (text-xl) เพื่อไม่ให้ดันจนจอล้น */}
                     <h1 className="text-xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight drop-shadow-lg whitespace-pre-line break-words">
                       {bannerSettings.title} 
                     </h1>
@@ -241,22 +301,62 @@ export default function App() {
                <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
             </div>
 
-            {/* Grid System - Mobile: 2 Columns */}
+            {/* Grid System */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8 w-full">
-              {products.filter(p => p.active).map((p) => (
-                <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full">
-                  <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100">
-                    <img src={p.imageUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"/> 
+              {products.filter(p => p.active).map((p) => {
+                const isOutOfStock = (p.stock || 0) <= 0;
+                return (
+                  <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full relative">
+                    
+                    {/* Badge: New Arrival */}
+                    {p.isNew && (
+                        <div className="absolute top-2 left-2 z-10 bg-red-600 text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded shadow-md flex items-center gap-1">
+                            <Tag size={12}/> New Arrival
+                        </div>
+                    )}
+
+                    {/* Image Area */}
+                    <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100 cursor-zoom-in" onClick={() => setViewingImage(p.imageUrl)}>
+                      <img src={p.imageUrl} className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}/> 
+                      {/* ไอคอนแว่นขยายเมื่อเอาเมาส์ชี้ */}
+                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <ZoomIn className="text-white drop-shadow-md" size={32}/>
+                      </div>
+                      {/* ป้ายสินค้าหมด */}
+                      {isOutOfStock && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                              <span className="bg-black/70 text-white px-3 py-1 rounded-lg text-sm font-bold">สินค้าหมด</span>
+                          </div>
+                      )}
+                    </div>
+
+                    <div className="p-3 md:p-5 flex flex-col flex-grow">
+                      {/* Product Code */}
+                      <div className="text-[10px] md:text-xs text-gray-400 mb-1 font-mono uppercase tracking-wide">
+                          Code: {p.code || '-'}
+                      </div>
+                      
+                      <h3 className="font-bold text-sm md:text-xl text-gray-900 mb-1 md:mb-2 line-clamp-1">{p.name}</h3>
+                      <p className="text-gray-500 text-xs md:text-sm mb-2 flex-grow line-clamp-2">{p.description}</p>
+                      
+                      {/* Stock Display */}
+                      <div className="flex justify-between items-center mb-3">
+                         <span className={`text-xs font-bold ${isOutOfStock ? 'text-red-500' : 'text-green-600'}`}>
+                             {isOutOfStock ? 'หมดแล้ว' : `เหลือ ${p.stock} ชิ้น`}
+                         </span>
+                      </div>
+
+                      <button 
+                        disabled={isOutOfStock}
+                        onClick={() => { setSelectedProduct(p); setView('form'); }} 
+                        className={`w-full py-2 md:py-3 rounded-lg md:rounded-xl font-bold text-xs md:text-base shadow-lg transition-all active:scale-95 ${isOutOfStock ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#003781] text-white hover:bg-[#002860] hover:shadow-blue-900/10'}`}
+                      >
+                        {isOutOfStock ? 'สินค้าหมด' : 'แลกรับสิทธิ์'}
+                      </button> 
+                    </div>
                   </div>
-                  <div className="p-3 md:p-5 flex flex-col flex-grow">
-                    <h3 className="font-bold text-sm md:text-xl text-gray-900 mb-1 md:mb-2 line-clamp-1">{p.name}</h3>
-                    <p className="text-gray-500 text-xs md:text-sm mb-3 md:mb-4 flex-grow line-clamp-2">{p.description}</p>
-                    <button onClick={() => { setSelectedProduct(p); setView('form'); }} className="w-full bg-[#003781] text-white py-2 md:py-3 rounded-lg md:rounded-xl font-bold text-xs md:text-base shadow-blue-900/10 hover:bg-[#002860] hover:shadow-lg transition-all active:scale-95">
-                      แลกรับสิทธิ์
-                    </button> 
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
            </div>
         )}
@@ -271,11 +371,21 @@ export default function App() {
             <div className="bg-white rounded-xl md:rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
               {/* Product Header */}
               <div className="bg-blue-50/50 p-4 md:p-8 border-b flex flex-col sm:flex-row gap-4 md:gap-6 items-center sm:items-start text-center sm:text-left">
-                 <img src={selectedProduct.imageUrl} className="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md bg-white border-4 border-white flex-shrink-0" />
+                 <div className="relative group cursor-pointer" onClick={() => setViewingImage(selectedProduct.imageUrl)}>
+                    <img src={selectedProduct.imageUrl} className="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md bg-white border-4 border-white flex-shrink-0" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-all rounded-xl">
+                        <ZoomIn className="text-white opacity-0 group-hover:opacity-100 drop-shadow-md"/>
+                    </div>
+                 </div>
                  <div className="w-full">
-                   <div className="text-[#003781] text-xs md:text-sm font-bold uppercase mb-1 tracking-wide">ของขวัญที่คุณเลือก</div>
+                   <div className="text-[#003781] text-xs md:text-sm font-bold uppercase mb-1 tracking-wide">
+                       CODE: {selectedProduct.code || '-'}
+                   </div>
                    <h2 className="text-xl md:text-3xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h2> 
-                   <p className="text-gray-600 text-sm md:text-base">{selectedProduct.description}</p>
+                   <p className="text-gray-600 text-sm md:text-base mb-2">{selectedProduct.description}</p>
+                   <div className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-bold">
+                       สถานะ: มีสินค้า ({selectedProduct.stock})
+                   </div>
                  </div>
               </div>
 
@@ -346,9 +456,8 @@ export default function App() {
                         </p>
                       </div>
 
-                      {/* FIX 2: ป้องกัน Layout ขยับ */}
+                      {/* Dummy Box Logic for Stability */}
                       {deliveryMethod === 'pickup' ? (
-                        // 1. กล่องเลือกวัน (นัดรับ) - ของจริง
                         <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 w-full animate-fade-in">
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
                             <Calendar size={18} className="text-[#003781]"/> เลือกวันและเวลานัดรับ
@@ -366,7 +475,6 @@ export default function App() {
                           </div>
                         </div>
                       ) : (
-                        // 2. กล่องล่องหน (Dummy Box) - มองไม่เห็น แต่กินพื้นที่เท่ากันเป๊ะ (ตามที่ลูกค้าขอ: "บล้อกวันที่ซ่อนไว้อยู่แบบไม่เห้นก็ได้")
                         <div className="bg-transparent p-4 rounded-xl border border-transparent w-full opacity-0 pointer-events-none select-none" aria-hidden="true">
                           <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
                             <Calendar size={18} /> เลือกวันและเวลานัดรับ
@@ -379,7 +487,7 @@ export default function App() {
                         </div>
                       )}
                       
-                      {/* Remark Field - วางแยกออกมาถาวรด้านล่างสุด */}
+                      {/* Remark Field */}
                       <div className="w-full">
                         <label className="flex items-center gap-2 text-sm font-bold text-gray-600 mb-2">
                           <FileText size={18} /> หมายเหตุ (ถ้ามี)
@@ -427,6 +535,10 @@ export default function App() {
                       <span className="font-bold text-gray-700 text-lg">สรุปรายการ (Summary)</span>
                    </div>
                    <div className="space-y-3 text-sm md:text-base text-gray-700">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">รหัสสินค้า:</span>
+                        <span className="font-bold text-right font-mono">{selectedProduct.code}</span>
+                      </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">สินค้า:</span>
                         <span className="font-bold text-right">{selectedProduct.name}</span>
@@ -564,7 +676,7 @@ export default function App() {
                            <th className="p-3 w-28">ประเภท</th>
                            <th className="p-3 w-40">ลูกค้า</th>
                            <th className="p-3 w-32">เบอร์โทร</th>
-                           <th className="p-3 w-40">สินค้า</th>
+                           <th className="p-3 w-40">สินค้า (Code)</th>
                            <th className="p-3">ที่อยู่ / วันนัดรับ</th>
                            <th className="p-3 w-24 text-center">จัดการ</th>
                          </tr>
@@ -580,7 +692,10 @@ export default function App() {
                              </td>
                              <td className="p-3 font-medium text-[#003781]">{order.name}</td>
                              <td className="p-3">{order.phone}</td>
-                             <td className="p-3"><span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs">{order.product}</span></td>
+                             <td className="p-3">
+                                 <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs block truncate w-fit max-w-[150px]">{order.product}</span>
+                                 <span className="text-[10px] text-gray-400 font-mono mt-1">Code: {order.productCode}</span>
+                             </td>
                              <td className="p-3 text-gray-600 min-w-[200px] text-xs">
                                 {order.address}
                                 {order.remark && <div className="text-gray-400 italic">Note: {order.remark}</div>}
@@ -621,16 +736,53 @@ export default function App() {
                              <h3 className="text-xl font-bold">{editingProduct.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h3>
                              <button onClick={() => setEditingProduct(null)}><X className="text-gray-400 hover:text-red-500"/></button>
                            </div>
-                          <form onSubmit={handleSaveProduct} className="space-y-3">
-                            <div><label className="text-xs text-gray-500">ชื่อสินค้า</label>
-                            <input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.name || ''} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} /></div>
-                            <div><label className="text-xs text-gray-500">รายละเอียด</label>
-                            <input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.description || ''} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} /></div>
-                            <div><label className="text-xs text-gray-500">ลิงก์รูปภาพ (URL)</label>
-                            <input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.imageUrl || ''} onChange={e => setEditingProduct({...editingProduct, imageUrl: e.target.value})} /></div>
+                          <form onSubmit={handleSaveProduct} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs text-gray-500 font-bold">รหัสสินค้า (Code)</label>
+                                    <input required className="w-full p-2 border rounded text-gray-900 bg-gray-50" placeholder="เช่น ABC-001" value={editingProduct.code || ''} onChange={e => setEditingProduct({...editingProduct, code: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 font-bold">จำนวนสต็อก (Stock)</label>
+                                    <input required type="number" className="w-full p-2 border rounded text-gray-900 bg-gray-50" placeholder="0" value={editingProduct.stock || 0} onChange={e => setEditingProduct({...editingProduct, stock: e.target.value})} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs text-gray-500 font-bold">ชื่อสินค้า</label>
+                                <input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.name || ''} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} />
+                            </div>
+                            
+                            <div>
+                                <label className="text-xs text-gray-500 font-bold">รายละเอียด</label>
+                                <input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.description || ''} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} />
+                            </div>
+
+                            <div className="border p-3 rounded-lg bg-gray-50">
+                                <label className="text-xs text-gray-500 font-bold mb-2 block">รูปสินค้า (อัปโหลด หรือ ใส่ลิงก์)</label>
+                                
+                                {/* 1. เลือกไฟล์ (แปลงเป็น Base64) */}
+                                <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full mb-2 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                                
+                                <div className="text-center text-gray-400 text-xs my-1">- หรือ -</div>
+                                
+                                {/* 2. ใส่ลิงก์ (เผื่ออยากใช้แบบเดิม) */}
+                                <input className="w-full p-2 border rounded text-gray-900 text-sm" placeholder="วางลิงก์รูปภาพ (URL) ที่นี่..." value={editingProduct.imageUrl || ''} onChange={e => setEditingProduct({...editingProduct, imageUrl: e.target.value})} />
+                                
+                                {editingProduct.imageUrl && (
+                                    <div className="mt-2 text-center">
+                                        <img src={editingProduct.imageUrl} className="h-20 mx-auto rounded border bg-white object-contain"/>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" id="isNew" className="w-4 h-4" checked={editingProduct.isNew || false} onChange={e => setEditingProduct({...editingProduct, isNew: e.target.checked})}/>
+                                <label htmlFor="isNew" className="text-sm text-gray-700">แสดงป้าย <span className="text-red-500 font-bold">New Arrival</span></label>
+                            </div>
                             
                             <div className="pt-2 flex gap-3">
-                              <button type="submit" className="flex-1 bg-[#003781] text-white py-2 rounded-lg font-bold">บันทึก</button>
+                              <button type="submit" className="flex-1 bg-[#003781] text-white py-3 rounded-lg font-bold shadow-lg hover:bg-[#002860]">บันทึกข้อมูล</button>
                             </div>
                           </form>
                         </div>
@@ -639,11 +791,17 @@ export default function App() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {products.map(p => (
-                        <div key={p.id} className={`border rounded-xl p-4 flex gap-4 items-start ${!p.active ? 'opacity-60 bg-gray-100' : 'bg-white'}`}>
-                          <img src={p.imageUrl} className="w-16 h-16 rounded object-cover bg-gray-200 flex-shrink-0"/>
+                        <div key={p.id} className={`border rounded-xl p-4 flex gap-4 items-start relative ${!p.active ? 'opacity-60 bg-gray-100' : 'bg-white'}`}>
+                          {p.isNew && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] px-1.5 rounded">New</span>}
+                          <img src={p.imageUrl} className="w-20 h-20 rounded object-cover bg-gray-200 flex-shrink-0 border"/>
                           <div className="flex-grow min-w-0">
-                            <div className="font-bold text-gray-900 truncate">{p.name}</div>
-                            <div className="text-xs text-gray-500 mb-2 truncate">{p.description}</div>
+                            <div className="flex justify-between items-start">
+                                <div className="font-bold text-gray-900 truncate">{p.name}</div>
+                                <div className="text-xs font-mono bg-gray-100 px-1 rounded text-gray-500">{p.code}</div>
+                            </div>
+                            <div className="text-xs text-gray-500 mb-1 truncate">{p.description}</div>
+                            <div className="text-xs font-bold mb-2 text-blue-600">Stock: {p.stock}</div>
+                            
                             <div className="flex gap-2">
                                <button onClick={() => handleToggleProduct(p)} className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${p.active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
                                  {p.active ? <><Eye size={12}/> แสดง</> : <><EyeOff size={12}/> ซ่อน</>}
