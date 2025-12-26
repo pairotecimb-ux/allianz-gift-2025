@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt, FileText, ZoomIn, Tag, Search, Download, Clock, CheckSquare } from 'lucide-react';
+import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt, FileText, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Activity, Filter } from 'lucide-react';
 import { db } from './firebase'; 
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
 // --- รหัสผ่านเข้าหลังบ้าน ---
 const ADMIN_PASSWORD = "8787"; 
 
-// --- ข้อมูลสินค้าเริ่มต้น ---
+// --- ข้อมูลสินค้าเริ่มต้น (เพิ่ม options) ---
 const INITIAL_PRODUCTS = [
-  { id: '1', code: "BAG-001", name: "กระเป๋าเดินทาง 20 นิ้ว", description: "สี Midnight Blue (Limited)", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true, isNew: true, stock: 10 },
-  { id: '2', code: "SHIRT-L", name: "เสื้อฮาวายลายช้าง (L)", description: "ผ้าไหมอิตาลี ใส่สบาย", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true, isNew: false, stock: 5 },
-  { id: '3', code: "GIFT-SET", name: "ชุด Gift Set รักษ์โลก", description: "แก้วน้ำ + ถุงผ้า", imageUrl: "https://images.unsplash.com/photo-1542435503-956c469947f6?w=1000", active: true, isNew: true, stock: 0 },
+  { id: '1', code: "BAG-001", name: "กระเป๋าเดินทาง 20 นิ้ว", description: "รุ่น Limited Edition แข็งแรง ทนทาน", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true, isNew: true, stock: 10, options: ["สี Midnight Blue", "สี Silver Grey", "สี Rose Gold"] },
+  { id: '2', code: "SHIRT-L", name: "เสื้อโปโล Allianz", description: "เนื้อผ้าใส่สบาย ระบายอากาศดีเยี่ยม", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true, isNew: false, stock: 20, options: ["S", "M", "L", "XL", "XXL"] },
+  { id: '3', code: "GIFT-SET", name: "ชุด Gift Set รักษ์โลก", description: "แก้วน้ำเก็บความเย็น + ถุงผ้าลดโลกร้อน", imageUrl: "https://images.unsplash.com/photo-1542435503-956c469947f6?w=1000", active: true, isNew: true, stock: 5, options: [] }, // ไม่มีตัวเลือก
 ];
 
 export default function App() {
@@ -26,6 +26,7 @@ export default function App() {
   });
 
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
+  const [selectedOption, setSelectedOption] = useState<string>(''); // เก็บตัวเลือกที่ลูกค้าเลือก
   const [viewingImage, setViewingImage] = useState<string | null>(null); 
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
@@ -35,12 +36,15 @@ export default function App() {
   
   // Admin States
   const [orders, setOrders] = useState<any[]>([]);
-  const [filteredOrders, setFilteredOrders] = useState<any[]>([]); // สำหรับ Search
-  const [searchTerm, setSearchTerm] = useState(''); // คำค้นหา
+  const [filteredOrders, setFilteredOrders] = useState<any[]>([]); 
+  const [searchTerm, setSearchTerm] = useState(''); 
   const [adminPassInput, setAdminPassInput] = useState(''); 
   const [adminTab, setAdminTab] = useState('orders'); 
   const [editingProduct, setEditingProduct] = useState<any>(null); 
   const [editingOrder, setEditingOrder] = useState<any>(null);
+
+  // Stats for Dashboard
+  const [stats, setStats] = useState({ total: 0, pending: 0, completed: 0 });
 
   // --- FIX Viewport ---
   useEffect(() => {
@@ -60,8 +64,15 @@ export default function App() {
     fetchContent();
   }, []); 
 
-  // --- Search Logic ---
+  // --- Search Logic & Stats Calculation ---
   useEffect(() => {
+    // คำนวณ Stats
+    const total = orders.length;
+    const pending = orders.filter(o => o.status !== 'completed').length;
+    const completed = orders.filter(o => o.status === 'completed').length;
+    setStats({ total, pending, completed });
+
+    // Search Logic
     if (searchTerm.trim() === '') {
       setFilteredOrders(orders);
     } else {
@@ -69,7 +80,8 @@ export default function App() {
       const filtered = orders.filter(o => 
         o.name?.toLowerCase().includes(lowerTerm) ||
         o.phone?.includes(lowerTerm) ||
-        o.productCode?.toLowerCase().includes(lowerTerm)
+        o.productCode?.toLowerCase().includes(lowerTerm) ||
+        o.productOption?.toLowerCase().includes(lowerTerm) // ค้นหาจากตัวเลือกได้ด้วย
       );
       setFilteredOrders(filtered);
     }
@@ -108,7 +120,7 @@ export default function App() {
     setLoading(false); 
   };
 
-  // --- Function แปลงไฟล์รูป + ย่อรูปอัตโนมัติ (ตัวเทพ) ---
+  // --- Function แปลงไฟล์รูป + ย่อรูปอัตโนมัติ ---
   const handleImageUpload = (e: any) => {
     const file = e.target.files[0];
     if (file) {
@@ -153,30 +165,27 @@ export default function App() {
         return;
     }
     
-    // Header ของ CSV
-    const headers = ["วันที่", "สถานะ", "ประเภทการรับ", "ชื่อลูกค้า", "เบอร์โทร", "สินค้า", "รหัสสินค้า (Code)", "ที่อยู่ / จุดนัดรับ", "วันนัดรับ", "หมายเหตุ"];
+    const headers = ["วันที่", "สถานะ", "ประเภทการรับ", "ชื่อลูกค้า", "เบอร์โทร", "สินค้า", "ตัวเลือก (Option)", "รหัสสินค้า", "ที่อยู่ / จุดนัดรับ", "วันนัดรับ", "หมายเหตุ"];
     
-    // ข้อมูลในแต่ละแถว
     const csvContent = [
       headers.join(","), 
       ...orders.map(o => {
-        // เตรียมข้อมูลและจัดการตัวอักษรพิเศษที่อาจทำลาย CSV (เช่น ลูกน้ำ หรือ การขึ้นบรรทัดใหม่)
         const date = o.timestamp?.toDate().toLocaleDateString('th-TH') || '-';
-        const status = o.status === 'completed' ? 'จัดส่งแล้ว/เสร็จสิ้น' : 'รอตรวจสอบ';
+        const status = o.status === 'completed' ? 'จัดส่งแล้ว' : 'รอตรวจสอบ';
         const type = o.deliveryMethod || '-';
-        const name = `"${o.name || ''}"`; // ใส่ "" ครอบเพื่อกันลูกน้ำในชื่อ
-        const phone = `"${o.phone || ''}"`; // ใส่ "" กัน Excel มองเป็นตัวเลขแล้วตัด 0 นำหน้า
+        const name = `"${o.name || ''}"`;
+        const phone = `"${o.phone || ''}"`;
         const product = `"${o.product || ''}"`;
+        const option = `"${o.productOption || '-'}"`; // เพิ่มคอลัมน์ตัวเลือก
         const code = `"${o.productCode || ''}"`;
-        const address = `"${(o.address || '').replace(/\n/g, ' ')}"`; // เปลี่ยนขึ้นบรรทัดใหม่เป็นเว้นวรรค
+        const address = `"${(o.address || '').replace(/\n/g, ' ')}"`;
         const pickupDate = o.pickupDate ? new Date(o.pickupDate).toLocaleString('th-TH') : '-';
         const remark = `"${o.remark || ''}"`;
 
-        return [date, status, type, name, phone, product, code, address, pickupDate, remark].join(",");
+        return [date, status, type, name, phone, product, option, code, address, pickupDate, remark].join(",");
       })
     ].join("\n");
 
-    // สร้างไฟล์และสั่งดาวน์โหลด (เพิ่ม BOM \uFEFF เพื่อให้ Excel อ่านภาษาไทยออก)
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -190,6 +199,13 @@ export default function App() {
   // --- 2. ฟังก์ชันลูกค้า ---
   const handleSubmitOrder = async (e: any) => {
     e.preventDefault();
+    
+    // Validation: เช็คว่าถ้ามีตัวเลือก ต้องเลือกก่อน
+    if (selectedProduct.options && selectedProduct.options.length > 0 && !selectedOption) {
+        alert("กรุณาเลือกตัวเลือกสินค้า (เช่น สี หรือ ไซซ์) ก่อนครับ");
+        return;
+    }
+
     setLoading(true); 
     try {
         const productRef = doc(db, "products", selectedProduct.id);
@@ -211,8 +227,9 @@ export default function App() {
                 product: selectedProduct.name,
                 productId: selectedProduct.id,
                 productCode: selectedProduct.code || '-',
+                productOption: selectedOption || '-', // บันทึกตัวเลือก
                 timestamp: Timestamp.now(),
-                status: 'pending' // Default status
+                status: 'pending' 
             });
 
             await updateDoc(productRef, {
@@ -247,17 +264,13 @@ export default function App() {
     const querySnapshot = await getDocs(q); 
     const orderList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setOrders(orderList);
-    setFilteredOrders(orderList); // Set init filtered
+    setFilteredOrders(orderList); 
   };
 
-  // Toggle Status Function
   const handleToggleStatus = async (order: any) => {
     const newStatus = order.status === 'completed' ? 'pending' : 'completed';
-    // Optimistic Update (อัปเดตหน้าจอทันทีเพื่อให้รู้สึกเร็ว)
     const updatedOrders = orders.map(o => o.id === order.id ? {...o, status: newStatus} : o);
     setOrders(updatedOrders);
-    
-    // Update DB
     await updateDoc(doc(db, "orders", order.id), { status: newStatus });
   };
 
@@ -265,12 +278,24 @@ export default function App() {
     e.preventDefault();
     if (!editingProduct) return;
     try {
+      // แปลง optionsString (text) -> options (array)
+      let optionsArray: string[] = [];
+      if (editingProduct.optionsString) {
+          optionsArray = editingProduct.optionsString.split(',').map((s:string) => s.trim()).filter((s:string) => s !== '');
+      } else if (Array.isArray(editingProduct.options)) {
+          optionsArray = editingProduct.options; // กรณีแก้แล้วไม่ได้แตะช่องนี้
+      }
+
       const productData = {
           ...editingProduct,
           stock: parseInt(editingProduct.stock) || 0,
           code: editingProduct.code || '',
-          isNew: editingProduct.isNew || false
+          isNew: editingProduct.isNew || false,
+          options: optionsArray
       };
+      
+      // ลบฟิลด์ชั่วคราวออกก่อนบันทึก
+      delete productData.optionsString;
 
       const isNew = !editingProduct.id;
       if (isNew) { 
@@ -317,12 +342,21 @@ export default function App() {
     alert("บันทึกการตั้งค่าหน้าเว็บเรียบร้อย");
   };
 
+  // Helper เพื่อเปิด Modal แก้ไขสินค้า และแปลง array เป็น string ให้แก้
+  const openEditProduct = (p: any) => {
+      let optionsStr = '';
+      if (p.options && Array.isArray(p.options)) {
+          optionsStr = p.options.join(', ');
+      }
+      setEditingProduct({ ...p, optionsString: optionsStr });
+  };
+
   const Footer = () => (
     <footer className="w-full bg-white border-t border-gray-200 py-6 text-center mt-auto">
       <div className="container mx-auto px-4">
         <p className="text-gray-600 text-sm md:text-base">
           © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v6.0 (Ultimate Plus)</span> 
+          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v7.0 (Option Edition)</span> 
         </p>
       </div>
     </footer>
@@ -395,14 +429,12 @@ export default function App() {
                 return (
                   <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full relative">
                     
-                    {/* Badge: New Arrival */}
                     {p.isNew && (
                         <div className="absolute top-2 left-2 z-10 bg-red-600 text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded shadow-md flex items-center gap-1">
                             <Tag size={12}/> New Arrival
                         </div>
                     )}
 
-                    {/* Image Area */}
                     <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100 cursor-zoom-in" onClick={() => setViewingImage(p.imageUrl)}>
                       <img src={p.imageUrl} className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}/> 
                       <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -423,6 +455,15 @@ export default function App() {
                       <h3 className="font-bold text-sm md:text-xl text-gray-900 mb-1 md:mb-2 line-clamp-1">{p.name}</h3>
                       <p className="text-gray-500 text-xs md:text-sm mb-2 flex-grow line-clamp-2">{p.description}</p>
                       
+                      {/* Badge แสดงจำนวนตัวเลือก */}
+                      {p.options && p.options.length > 0 && (
+                          <div className="mb-2">
+                              <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md border border-gray-200">
+                                มี {p.options.length} ตัวเลือก
+                              </span>
+                          </div>
+                      )}
+
                       <div className="flex justify-between items-center mb-3">
                          <span className={`text-xs font-bold ${isOutOfStock ? 'text-red-500' : 'text-green-600'}`}>
                              {isOutOfStock ? 'หมดแล้ว' : `เหลือ ${p.stock} ชิ้น`}
@@ -431,7 +472,7 @@ export default function App() {
 
                       <button 
                         disabled={isOutOfStock}
-                        onClick={() => { setSelectedProduct(p); setView('form'); }} 
+                        onClick={() => { setSelectedProduct(p); setSelectedOption(''); setView('form'); }} 
                         className={`w-full py-2 md:py-3 rounded-lg md:rounded-xl font-bold text-xs md:text-base shadow-lg transition-all active:scale-95 ${isOutOfStock ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#003781] text-white hover:bg-[#002860] hover:shadow-blue-900/10'}`}
                       >
                         {isOutOfStock ? 'สินค้าหมด' : 'แลกรับสิทธิ์'}
@@ -475,6 +516,26 @@ export default function App() {
               <div className="p-4 md:p-10 w-full">
                 <form onSubmit={handleSubmitOrder} className="space-y-6 w-full">
                   
+                  {/* --- NEW: ตัวเลือกสินค้า (ถ้ามี) --- */}
+                  {selectedProduct.options && selectedProduct.options.length > 0 && (
+                      <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-xl animate-fade-in">
+                          <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
+                             <Layers size={18} className="text-[#003781]"/> กรุณาเลือกแบบ / สี / ไซซ์
+                          </label>
+                          <select 
+                            required 
+                            className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base"
+                            value={selectedOption}
+                            onChange={(e) => setSelectedOption(e.target.value)}
+                          >
+                              <option value="" disabled>-- กรุณาเลือกตัวเลือก --</option>
+                              {selectedProduct.options.map((opt: string, index: number) => (
+                                  <option key={index} value={opt}>{opt}</option>
+                              ))}
+                          </select>
+                      </div>
+                  )}
+
                   {/* Delivery Method Toggle */}
                   <div className="w-full">
                     <label className="block text-sm font-bold text-gray-700 mb-3">เลือกวิธีการรับของขวัญ</label>
@@ -626,6 +687,15 @@ export default function App() {
                         <span className="text-gray-500">สินค้า:</span>
                         <span className="font-bold text-right">{selectedProduct.name}</span>
                       </div>
+                      
+                      {/* Show Option in Summary */}
+                      {selectedOption && (
+                          <div className="flex justify-between bg-yellow-50 p-2 rounded border border-yellow-100 -mx-2">
+                            <span className="text-gray-700 font-bold">ตัวเลือก:</span>
+                            <span className="font-bold text-right text-[#003781]">{selectedOption}</span>
+                          </div>
+                      )}
+
                       <div className="flex justify-between">
                         <span className="text-gray-500">วิธีรับ:</span>
                         <span className="font-bold text-right text-[#003781]">{finalDeliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ'}</span> 
@@ -715,6 +785,22 @@ export default function App() {
                </div>
              </div>
 
+             {/* DASHBOARD STATS (NEW FEATURE) */}
+             <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6">
+                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center">
+                    <span className="text-gray-500 text-xs md:text-sm font-bold">ออเดอร์ทั้งหมด</span>
+                    <span className="text-2xl md:text-3xl font-bold text-[#003781]">{stats.total}</span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-orange-200 shadow-sm flex flex-col items-center bg-orange-50">
+                    <span className="text-orange-600 text-xs md:text-sm font-bold">รอดำเนินการ</span>
+                    <span className="text-2xl md:text-3xl font-bold text-orange-600">{stats.pending}</span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-green-200 shadow-sm flex flex-col items-center bg-green-50">
+                    <span className="text-green-600 text-xs md:text-sm font-bold">เสร็จสิ้นแล้ว</span>
+                    <span className="text-2xl md:text-3xl font-bold text-green-600">{stats.completed}</span>
+                </div>
+             </div>
+
              <div className="flex gap-2 mb-6 border-b overflow-x-auto pb-1 no-scrollbar w-full">
                <button onClick={() => setAdminTab('orders')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'orders' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>📦 ออเดอร์ ({orders.length})</button> 
                <button onClick={() => setAdminTab('products')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'products' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🛍️ สินค้า</button>
@@ -733,7 +819,7 @@ export default function App() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
                             <input 
                                 className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                placeholder="ค้นหาชื่อ, เบอร์โทร, รหัสสินค้า..." 
+                                placeholder="ค้นหาชื่อ, เบอร์โทร, รหัสสินค้า, ตัวเลือก..." 
                                 value={searchTerm}
                                 onChange={e => setSearchTerm(e.target.value)}
                             />
@@ -811,8 +897,14 @@ export default function App() {
                              <td className="p-3 font-medium text-[#003781]">{order.name}</td>
                              <td className="p-3 text-gray-600">{order.phone}</td>
                              <td className="p-3">
-                                 <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs block truncate w-fit max-w-[150px]">{order.product}</span>
-                                 <span className="text-[10px] text-gray-400 font-mono mt-1">Code: {order.productCode}</span>
+                                 <div className="font-bold text-gray-800">{order.product}</div>
+                                 {/* SHOW OPTION */}
+                                 {order.productOption && order.productOption !== '-' && (
+                                     <div className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded w-fit my-1 border border-yellow-200">
+                                        {order.productOption}
+                                     </div>
+                                 )}
+                                 <div className="text-[10px] text-gray-400 font-mono">Code: {order.productCode}</div>
                              </td>
                              <td className="p-3 text-gray-600 min-w-[200px] text-xs">
                                 {order.address}
@@ -876,6 +968,18 @@ export default function App() {
                                 <input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.description || ''} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} />
                             </div>
 
+                            {/* --- New Option Input --- */}
+                            <div>
+                                <label className="text-xs text-gray-500 font-bold flex items-center gap-1"><Layers size={12}/> ตัวเลือกสินค้า (ถ้ามี)</label>
+                                <input 
+                                    className="w-full p-2 border rounded text-gray-900 bg-yellow-50 focus:bg-white transition" 
+                                    placeholder="เช่น: สีแดง, สีน้ำเงิน, S, M, L (ใช้จุลภาคคั่น)" 
+                                    value={editingProduct.optionsString || ''} 
+                                    onChange={e => setEditingProduct({...editingProduct, optionsString: e.target.value})} 
+                                />
+                                <p className="text-[10px] text-gray-400 mt-1">* หากไม่มีตัวเลือกให้เว้นว่างไว้</p>
+                            </div>
+
                             <div className="border p-3 rounded-lg bg-gray-50">
                                 <label className="text-xs text-gray-500 font-bold mb-2 block">รูปสินค้า (อัปโหลด หรือ ใส่ลิงก์)</label>
                                 <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full mb-2 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
@@ -912,13 +1016,20 @@ export default function App() {
                                 <div className="text-xs font-mono bg-gray-100 px-1 rounded text-gray-500">{p.code}</div>
                             </div>
                             <div className="text-xs text-gray-500 mb-1 truncate">{p.description}</div>
+                            
+                            {p.options && p.options.length > 0 && (
+                                <div className="text-[10px] text-gray-500 bg-gray-50 border rounded px-1 py-0.5 inline-block mb-1">
+                                    ตัวเลือก: {p.options.join(', ')}
+                                </div>
+                            )}
+
                             <div className="text-xs font-bold mb-2 text-blue-600">Stock: {p.stock}</div>
                             
                             <div className="flex gap-2">
                                <button onClick={() => handleToggleProduct(p)} className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${p.active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
                                  {p.active ? <><Eye size={12}/> แสดง</> : <><EyeOff size={12}/> ซ่อน</>}
                                </button>
-                               <button onClick={() => setEditingProduct(p)} className="px-2 py-1 bg-blue-50 rounded text-xs text-blue-600 flex items-center gap-1"><Edit size={12}/> แก้ไข</button>
+                               <button onClick={() => openEditProduct(p)} className="px-2 py-1 bg-blue-50 rounded text-xs text-blue-600 flex items-center gap-1"><Edit size={12}/> แก้ไข</button>
                                <button onClick={() => handleDeleteProduct(p.id)} className="px-2 py-1 bg-red-50 rounded text-xs text-red-600 flex items-center gap-1"><Trash2 size={12}/> ลบ</button>
                             </div>
                           </div>
