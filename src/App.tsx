@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, Truck, Handshake, MessageCircle, Receipt, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Sparkles, Megaphone, Star, ChevronRight, Gift, Upload } from 'lucide-react';
+import { ShoppingBag, CheckCircle, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, Truck, Handshake, MessageCircle, Receipt, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Megaphone, Star, ChevronRight, Gift, CalendarCheck } from 'lucide-react';
 import { db } from './firebase'; 
-import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc, where } from 'firebase/firestore';
 
 // --- รหัสผ่านเข้าหลังบ้าน ---
 const ADMIN_PASSWORD = "4242"; 
@@ -26,12 +26,13 @@ export default function App() {
 
   // Banner Settings
   const [bannerSettings, setBannerSettings] = useState({
-    bannerUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=2000", // รูปกล่องของขวัญ
+    bannerUrl: "", // Start empty to prevent flashing
     title: "ของขวัญพิเศษ แทนคำขอบคุณ",
     subtitle: "Privilege 2025",
     showAnnouncement: true,
     announcementText: "🎉 แลกรับได้ตั้งแต่วันนี้ - 15 มกราคม 2569 เท่านั้น!",
   });
+  const [isBannerLoaded, setIsBannerLoaded] = useState(false);
 
   // Modal States
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -60,6 +61,7 @@ export default function App() {
   const [isCheckOrderOpen, setIsCheckOrderOpen] = useState(false);
   const [checkOrderPhone, setCheckOrderPhone] = useState('');
   const [myOrders, setMyOrders] = useState<any[] | null>(null);
+  const [isSearchingOrder, setIsSearchingOrder] = useState(false);
 
   // --- FIX Viewport ---
   useEffect(() => {
@@ -79,10 +81,10 @@ export default function App() {
     fetchContent();
   }, []); 
 
-  // --- Search Logic & Stats ---
+  // --- Search Logic & Stats (Admin) ---
   useEffect(() => {
     const total = orders.length;
-    const pending = orders.filter(o => o.status !== 'completed').length;
+    const pending = orders.filter(o => o.status !== 'completed' && o.status !== 'confirmed_date').length;
     const completed = orders.filter(o => o.status === 'completed').length;
     setStats({ total, pending, completed });
 
@@ -103,6 +105,7 @@ export default function App() {
   const fetchContent = async () => {
     setLoading(true);
     try {
+      // Products
       const pQuery = query(collection(db, "products"));
       const pSnapshot = await getDocs(pQuery); 
       let pList = pSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -115,13 +118,18 @@ export default function App() {
       }
       setProducts(pList);
 
+      // Settings
       const settingSnap = await getDoc(doc(db, "settings", "main"));
       if (settingSnap.exists()) {
         const data = settingSnap.data();
-        setBannerSettings({ ...bannerSettings, ...data }); 
+        setBannerSettings(prev => ({ ...prev, ...data })); 
       } else {
-        await setDoc(doc(db, "settings", "main"), bannerSettings);
+        // If no settings in DB, use default box image
+        const defaultBanner = "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=2000";
+        setBannerSettings(prev => ({...prev, bannerUrl: defaultBanner}));
+        await setDoc(doc(db, "settings", "main"), { ...bannerSettings, bannerUrl: defaultBanner });
       }
+      setIsBannerLoaded(true);
 
     } catch (err) {
       console.error("Error fetching:", err);
@@ -138,7 +146,7 @@ export default function App() {
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
-        const MAX_WIDTH = 800; // Increased quality slightly
+        const MAX_WIDTH = 800; 
         const MAX_HEIGHT = 800;
 
         if (width > height) {
@@ -192,7 +200,10 @@ export default function App() {
       headers.join(","), 
       ...orders.map(o => {
         const date = o.timestamp?.toDate().toLocaleDateString('th-TH') || '-';
-        const status = o.status === 'completed' ? 'จัดส่งแล้ว' : 'รอตรวจสอบ';
+        let statusText = 'รอตรวจสอบ';
+        if (o.status === 'completed') statusText = 'จัดส่งแล้ว';
+        if (o.status === 'confirmed_date') statusText = 'ยืนยันวันเวลาแล้ว';
+        
         const tracking = `"${o.trackingNumber || '-'}"`; 
         const type = o.deliveryMethod || '-';
         const name = `"${o.name || ''}"`;
@@ -203,7 +214,7 @@ export default function App() {
         const address = `"${(o.address || '').replace(/\n/g, ' ')}"`;
         const pickupDate = o.pickupDate ? new Date(o.pickupDate).toLocaleString('th-TH') : '-';
         const remark = `"${o.remark || ''}"`;
-        return [date, status, tracking, type, name, phone, product, option, code, address, pickupDate, remark].join(",");
+        return [date, statusText, tracking, type, name, phone, product, option, code, address, pickupDate, remark].join(",");
       })
     ].join("\n");
 
@@ -217,10 +228,29 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  const handleCheckOrderSearch = (e: any) => {
+  // --- FIX 1 (Update V13.1): Search Order WITHOUT orderBy to avoid Index Error ---
+  const handleCheckOrderSearch = async (e: any) => {
       e.preventDefault();
-      const found = orders.filter(o => o.phone.trim() === checkOrderPhone.trim());
-      setMyOrders(found);
+      if (!checkOrderPhone.trim()) return;
+      
+      setIsSearchingOrder(true);
+      try {
+        // แก้ไข: ค้นหาแค่เบอร์อย่างเดียว (ไม่ใส่ orderBy) เพื่อเลี่ยงปัญหา Missing Index ของ Firebase
+        const q = query(collection(db, "orders"), where("phone", "==", checkOrderPhone.trim()));
+        const snapshot = await getDocs(q);
+        const foundOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // เรียงลำดับเองใน Javascript แทน (ใหม่สุดขึ้นก่อน)
+        foundOrders.sort((a: any, b: any) => {
+            return (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0);
+        });
+
+        setMyOrders(foundOrders);
+      } catch (error: any) {
+        console.error("Search Error:", error);
+        alert("เกิดข้อผิดพลาดในการค้นหา: " + error.message);
+      }
+      setIsSearchingOrder(false);
   };
 
   const handleSubmitOrder = async (e: any) => {
@@ -297,7 +327,12 @@ export default function App() {
   };
 
   const handleToggleStatus = async (order: any) => {
-    const newStatus = order.status === 'completed' ? 'pending' : 'completed';
+    // Cycle statuses: pending -> confirmed_date -> completed -> pending
+    let newStatus = 'pending';
+    if (order.status === 'pending') newStatus = 'confirmed_date';
+    else if (order.status === 'confirmed_date') newStatus = 'completed';
+    else newStatus = 'pending';
+
     const updatedOrders = orders.map(o => o.id === order.id ? {...o, status: newStatus} : o);
     setOrders(updatedOrders);
     await updateDoc(doc(db, "orders", order.id), { status: newStatus });
@@ -394,7 +429,7 @@ export default function App() {
       <div className="container mx-auto px-4">
         <p className="text-gray-600 text-sm md:text-base">
           © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v12.0</span> 
+          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v13.1</span> 
         </p>
       </div>
     </footer>
@@ -436,8 +471,8 @@ export default function App() {
                             onChange={e => setCheckOrderPhone(e.target.value)}
                             autoFocus
                         />
-                        <button type="submit" className="bg-[#003781] text-white px-6 rounded-xl font-bold hover:bg-[#002860]">
-                            ค้นหา
+                        <button type="submit" disabled={isSearchingOrder} className="bg-[#003781] text-white px-6 rounded-xl font-bold hover:bg-[#002860] disabled:bg-gray-400">
+                            {isSearchingOrder ? '...' : 'ค้นหา'}
                         </button>
                     </form>
 
@@ -452,7 +487,29 @@ export default function App() {
                                 ไม่พบข้อมูลออเดอร์ของเบอร์นี้
                             </div>
                         ) : (
-                            myOrders.map(order => (
+                            myOrders.map(order => {
+                                let statusBadge;
+                                if (order.status === 'completed') {
+                                    statusBadge = (
+                                        <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                                            <CheckCircle size={12}/> จัดส่งแล้ว
+                                        </span>
+                                    );
+                                } else if (order.status === 'confirmed_date') {
+                                    statusBadge = (
+                                        <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                                            <CalendarCheck size={12}/> ยืนยันวันเวลานัดรับแล้ว
+                                        </span>
+                                    );
+                                } else {
+                                    statusBadge = (
+                                        <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                                            <Clock size={12}/> รอดำเนินการ
+                                        </span>
+                                    );
+                                }
+
+                                return (
                                 <div key={order.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50 hover:bg-white hover:shadow-md transition-all">
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
@@ -460,21 +517,22 @@ export default function App() {
                                             {order.productOption && order.productOption !== '-' && <span className="text-xs text-gray-500">({order.productOption})</span>}
                                             <p className="text-xs text-gray-400 mt-1">วันที่แลก: {order.timestamp?.toDate().toLocaleDateString('th-TH')}</p>
                                         </div>
-                                        {order.status === 'completed' ? (
-                                            <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1">
-                                                <CheckCircle size={12}/> จัดส่งแล้ว
-                                            </span>
-                                        ) : (
-                                            <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1">
-                                                <Clock size={12}/> รอดำเนินการ
-                                            </span>
-                                        )}
+                                        {statusBadge}
                                     </div>
                                     <div className="text-sm text-gray-600 border-t border-gray-200 pt-2 mt-2">
                                         <p className="flex items-center gap-2">
                                             {order.deliveryMethod === 'จัดส่งถึงบ้าน' ? <Truck size={14}/> : <MapPin size={14}/>}
                                             {order.deliveryMethod}
                                         </p>
+                                        
+                                        {/* Show Date for Confirmed Date Status */}
+                                        {order.status === 'confirmed_date' && order.pickupDate && (
+                                             <div className="mt-2 bg-emerald-50 p-2 border border-emerald-100 rounded text-emerald-800 text-sm font-bold flex items-center gap-2">
+                                                <CalendarCheck size={16}/> 
+                                                <span>เวลานัด: {new Date(order.pickupDate).toLocaleString('th-TH')}</span>
+                                            </div>
+                                        )}
+
                                         {order.trackingNumber && (
                                             <div className="mt-2 bg-blue-50 p-2 border border-blue-100 rounded text-blue-800 text-sm font-mono flex items-center gap-2">
                                                 📦 <b>Track:</b> {order.trackingNumber}
@@ -482,7 +540,7 @@ export default function App() {
                                         )}
                                     </div>
                                 </div>
-                            ))
+                            )})
                         )}
                     </div>
                 </div>
@@ -505,10 +563,16 @@ export default function App() {
                         <Gift className="text-[#003781] w-10 h-10 animate-bounce" />
                     </div>
                     <h2 className="text-2xl font-bold text-[#003781] mb-2">ขอบคุณที่ร่วมกิจกรรม</h2>
+                    
+                    {/* FIX 4: ข้อความต่างกันตามประเภทการรับ */}
                     <p className="text-gray-500 text-sm mb-6">
                         ระบบได้รับข้อมูลเรียบร้อยแล้ว <br/>
                         สามารถตรวจสอบสถานะได้ที่ปุ่ม "ตรวจสอบสถานะ" <br/>
-                        <span className="font-bold text-orange-500">ภายใน 1-3 วันทำการ</span>
+                        {finalDeliveryMethod === 'pickup' ? (
+                            <span className="font-bold text-orange-600">การยืนยันวันและเวลา อีกครั้ง ภายใน 1-3 วันทำการ</span>
+                        ) : (
+                             <span className="font-bold text-blue-600">ภายใน 1-3 วันทำการ</span>
+                        )}
                     </p>
 
                     {/* Summary Card - ALL INFO */}
@@ -598,7 +662,6 @@ export default function App() {
                          <h2 className="text-xl font-bold text-gray-900 mb-2">{selectedProduct.name}</h2>
                          <p className="text-sm text-gray-500 mb-4">{selectedProduct.description}</p>
                          
-                         {/* Highlight: ใช้ 1 สิทธิ์ */}
                          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 mb-4">
                             <Star size={16} fill="currentColor"/> ใช้ 1 สิทธิ์
                          </div>
@@ -626,13 +689,14 @@ export default function App() {
                             <div className="space-y-2">
                                 <label className="text-sm font-bold text-gray-800">วิธีการรับของ <span className="text-red-500">*</span></label>
                                 <div className="flex gap-4">
+                                    {/* FIX 3: แก้ไข Label */}
                                     <label className={`flex-1 p-4 rounded-xl border-2 cursor-pointer flex flex-col items-center gap-2 transition ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500'}`}>
                                         <input type="radio" name="delivery" className="hidden" checked={deliveryMethod === 'delivery'} onChange={() => setDeliveryMethod('delivery')} />
-                                        <Truck size={24}/> <span className="text-sm font-bold">ส่งถึงบ้าน</span>
+                                        <Truck size={24}/> <span className="text-sm font-bold">จัดส่งถึงบ้าน</span>
                                     </label>
                                     <label className={`flex-1 p-4 rounded-xl border-2 cursor-pointer flex flex-col items-center gap-2 transition ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500'}`}>
                                         <input type="radio" name="delivery" className="hidden" checked={deliveryMethod === 'pickup'} onChange={() => setDeliveryMethod('pickup')} />
-                                        <Handshake size={24}/> <span className="text-sm font-bold">นัดรับเอง</span>
+                                        <Handshake size={24}/> <span className="text-sm font-bold">สะดวกนัดรับ</span>
                                     </label>
                                 </div>
                             </div>
@@ -650,13 +714,22 @@ export default function App() {
 
                             <div>
                                 <label className="text-sm font-bold text-gray-800 mb-1 block">{deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'สถานที่นัดรับ'} <span className="text-red-500">*</span></label>
-                                <textarea required rows={2} className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none resize-none" placeholder={deliveryMethod === 'delivery' ? "บ้านเลขที่, ถนน, แขวง, เขต, จ.รหัสไปรษณีย์" : "ระบุจุดนัดพบให้ชัดเจน"} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+                                {/* FIX 3: แก้ไข Placeholder */}
+                                <textarea required rows={2} className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none resize-none" 
+                                    placeholder={deliveryMethod === 'delivery' ? "บ้านเลขที่, ถนน, แขวง, เขต, จ.รหัสไปรษณีย์" : "ระบุสถานที่ เช่น BTS สยาม, เซ็นทรัลลาดพร้าว, บ้านลูกค้า/บ้านตัวแทน, ฯลฯ ใน กทม."} 
+                                    value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
                             </div>
 
                             {deliveryMethod === 'pickup' && (
                                 <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 animate-fade-in">
                                     <label className="text-sm font-bold text-orange-800 mb-1 block">วันเวลานัดรับ <span className="text-red-500">*</span></label>
-                                    <input required type="datetime-local" className="w-full p-3 rounded-xl border bg-white focus:ring-2 focus:ring-[#003781] outline-none" value={formData.pickupDate} onChange={e => setFormData({...formData, pickupDate: e.target.value})} />
+                                    {/* FIX 3: Add onClick showPicker */}
+                                    <input required type="datetime-local" 
+                                        className="w-full p-3 rounded-xl border bg-white focus:ring-2 focus:ring-[#003781] outline-none cursor-pointer" 
+                                        value={formData.pickupDate} 
+                                        onChange={e => setFormData({...formData, pickupDate: e.target.value})} 
+                                        onClick={(e) => e.currentTarget.showPicker()}
+                                    />
                                 </div>
                             )}
 
@@ -735,9 +808,19 @@ export default function App() {
                 </div>
             )}
 
-            {/* Banner */}
-            <div className="relative w-full aspect-[21/9] min-h-[220px] max-h-[400px] rounded-2xl overflow-hidden shadow-xl mb-6 group">
-              <img src={bannerSettings.bannerUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="Banner"/>
+            {/* Banner with Loading State */}
+            <div className="relative w-full aspect-[21/9] min-h-[220px] max-h-[400px] rounded-2xl overflow-hidden shadow-xl mb-6 group bg-gray-200">
+               {!isBannerLoaded && (
+                   <div className="absolute inset-0 flex items-center justify-center text-gray-400 animate-pulse">
+                       <Package size={48} />
+                   </div>
+               )}
+               <img 
+                 src={bannerSettings.bannerUrl || "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=2000"} 
+                 className={`w-full h-full object-cover transition-opacity duration-700 hover:scale-105 ${isBannerLoaded ? 'opacity-100' : 'opacity-0'}`} 
+                 onLoad={() => setIsBannerLoaded(true)}
+                 alt="Banner"
+               />
               <div className="absolute inset-0 bg-gradient-to-r from-[#003781]/90 via-[#003781]/60 to-transparent flex items-center p-6 md:p-12">
                  <div className="text-white w-full max-w-xl">
                     <span className="bg-white/20 backdrop-blur text-xs md:text-sm px-3 py-1 rounded-full mb-3 inline-block border border-white/30 shadow-sm text-yellow-300 font-bold">
@@ -912,8 +995,10 @@ export default function App() {
                                         </div>
                                         <div>
                                             <label className="text-xs text-gray-500 font-bold">สถานะ</label>
+                                            {/* FIX 5: เพิ่มตัวเลือก ยืนยันวันเวลา */}
                                             <select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.status} onChange={e => setEditingOrder({...editingOrder, status: e.target.value})}>
                                                 <option value="pending">รอดำเนินการ</option>
+                                                <option value="confirmed_date">ยืนยันวันเวลา</option>
                                                 <option value="completed">เสร็จสิ้น/ส่งแล้ว</option>
                                             </select>
                                         </div>
@@ -923,9 +1008,11 @@ export default function App() {
                                         <input className="w-full p-2 border rounded text-gray-900 bg-white placeholder-gray-400" placeholder="เช่น Kerry: KER123..." value={editingOrder.trackingNumber || ''} onChange={e => setEditingOrder({...editingOrder, trackingNumber: e.target.value})} />
                                     </div>
                                     <div><label className="text-xs text-gray-500 font-bold">ที่อยู่ / จุดนัดรับ</label><textarea required rows={3} className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.address} onChange={e => setEditingOrder({...editingOrder, address: e.target.value})} /></div>
-                                    {editingOrder.deliveryMethod === 'นัดรับ' && (
-                                         <div><label className="text-xs text-gray-500 font-bold text-orange-600">เวลานัดรับ</label><input type="datetime-local" className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.pickupDate || ''} onChange={e => setEditingOrder({...editingOrder, pickupDate: e.target.value})} /></div>
-                                    )}
+                                    {/* Show pickup date picker if needed */}
+                                    <div>
+                                        <label className="text-xs text-gray-500 font-bold text-orange-600">เวลานัดรับ</label>
+                                        <input type="datetime-local" className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.pickupDate || ''} onChange={e => setEditingOrder({...editingOrder, pickupDate: e.target.value})} />
+                                    </div>
                                  </div>
                             </div>
                             <div className="pt-2 flex gap-3"><button type="submit" className="flex-1 bg-[#003781] text-white py-2 rounded-lg font-bold">บันทึก</button></div>
@@ -951,11 +1038,15 @@ export default function App() {
                        <tbody className="divide-y">
                          {filteredOrders.map((order) => {
                            const isCompleted = order.status === 'completed';
+                           const isConfirmedDate = order.status === 'confirmed_date';
                            return (
                            <tr key={order.id} className={`hover:bg-gray-50 text-gray-800 ${isCompleted ? 'bg-gray-50/50' : ''}`}>
                              <td className="p-3 text-center">
-                                <button onClick={() => handleToggleStatus(order)} title={isCompleted ? "เสร็จสิ้นแล้ว" : "รอดำเนินการ"} className={`transition-all ${isCompleted ? 'text-green-500' : 'text-gray-300 hover:text-green-400'}`}>
-                                    {isCompleted ? <CheckSquare size={24}/> : <div className="w-6 h-6 border-2 border-gray-300 rounded hover:border-green-400"></div>}
+                                <button onClick={() => handleToggleStatus(order)} 
+                                    title={isCompleted ? "เสร็จสิ้น" : (isConfirmedDate ? "ยืนยันวันแล้ว" : "รอดำเนินการ")} 
+                                    className={`transition-all ${isCompleted ? 'text-green-500' : (isConfirmedDate ? 'text-emerald-500' : 'text-gray-300 hover:text-green-400')}`}
+                                >
+                                    {isCompleted ? <CheckSquare size={24}/> : (isConfirmedDate ? <CalendarCheck size={24}/> : <div className="w-6 h-6 border-2 border-gray-300 rounded hover:border-green-400"></div>)}
                                 </button>
                              </td>
                              <td className="p-3 text-gray-500 whitespace-nowrap text-xs">{order.timestamp?.toDate().toLocaleDateString('th-TH')}<div className="text-[10px] opacity-70">{order.timestamp?.toDate().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})}</div></td>
@@ -970,7 +1061,7 @@ export default function App() {
                              <td className="p-3 text-gray-600 min-w-[200px] text-xs">
                                 {order.address}
                                 {order.remark && <div className="text-gray-400 italic mt-1">Note: {order.remark}</div>}
-                                {order.deliveryMethod === 'นัดรับ' && order.pickupDate && <div className="mt-1 text-orange-600 font-bold flex items-center gap-1"><Clock size={10}/> นัด: {new Date(order.pickupDate).toLocaleString('th-TH')}</div>}
+                                {order.pickupDate && <div className={`mt-1 font-bold flex items-center gap-1 ${isConfirmedDate ? 'text-emerald-600' : 'text-orange-600'}`}><Clock size={10}/> นัด: {new Date(order.pickupDate).toLocaleString('th-TH')}</div>}
                                 {order.trackingNumber && <div className="mt-1 text-blue-600 font-mono bg-blue-50 px-1 rounded w-fit">📦 {order.trackingNumber}</div>}
                              </td>
                              <td className="p-3 text-center flex gap-1 justify-center">
