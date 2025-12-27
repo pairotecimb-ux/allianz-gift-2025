@@ -1,37 +1,45 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, ArrowLeft, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, User, Truck, Handshake, MessageCircle, Calendar, Receipt, FileText, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Sparkles, Megaphone } from 'lucide-react';
+import { ShoppingBag, CheckCircle, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, Truck, Handshake, MessageCircle, Receipt, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Sparkles, Megaphone, Star, ChevronRight, Gift, Upload } from 'lucide-react';
 import { db } from './firebase'; 
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc } from 'firebase/firestore';
 
 // --- รหัสผ่านเข้าหลังบ้าน ---
 const ADMIN_PASSWORD = "4242"; 
 
-// --- ข้อมูลสินค้าเริ่มต้น ---
+// --- หมวดหมู่สินค้า ---
+const PRODUCT_CATEGORIES = ["ทั้งหมด", "Lifestyle", "Gadget", "Fashion", "Home", "Travel"];
+
+// --- ข้อมูลสินค้าเริ่มต้น (Mockup) ---
 const INITIAL_PRODUCTS = [
-  { id: '1', code: "BAG-001", name: "กระเป๋าเดินทาง 20 นิ้ว", description: "รุ่น Limited Edition แข็งแรง ทนทาน", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true, isNew: true, stock: 10, options: ["สี Midnight Blue", "สี Silver Grey", "สี Rose Gold"] },
-  { id: '2', code: "SHIRT-L", name: "เสื้อโปโล Allianz", description: "เนื้อผ้าใส่สบาย ระบายอากาศดีเยี่ยม", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true, isNew: false, stock: 20, options: ["S", "M", "L", "XL", "XXL"] },
-  { id: '3', code: "GIFT-SET", name: "ชุด Gift Set รักษ์โลก", description: "แก้วน้ำเก็บความเย็น + ถุงผ้าลดโลกร้อน", imageUrl: "https://images.unsplash.com/photo-1542435503-956c469947f6?w=1000", active: true, isNew: true, stock: 5, options: [] },
+  { id: '1', code: "BAG-001", name: "กระเป๋าเดินทาง 20 นิ้ว", category: "Travel", description: "รุ่น Limited Edition แข็งแรง ทนทาน", imageUrl: "https://images.unsplash.com/photo-1565026057447-bc072a804e8f?w=1000", active: true, isNew: true, stock: 10, options: ["สี Midnight Blue", "สี Silver Grey", "สี Rose Gold"] },
+  { id: '2', code: "SHIRT-L", name: "เสื้อโปโล Allianz", category: "Fashion", description: "เนื้อผ้าใส่สบาย ระบายอากาศดีเยี่ยม", imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=1000", active: true, isNew: false, stock: 20, options: ["S", "M", "L", "XL", "XXL"] },
+  { id: '3', code: "GIFT-SET", name: "ชุด Gift Set รักษ์โลก", category: "Lifestyle", description: "แก้วน้ำเก็บความเย็น + ถุงผ้าลดโลกร้อน", imageUrl: "https://images.unsplash.com/photo-1542435503-956c469947f6?w=1000", active: true, isNew: true, stock: 5, options: [] },
 ];
 
 export default function App() {
   // --- States ---
-  const [view, setView] = useState('home'); 
+  const [view, setView] = useState('home'); // home, admin, login
   const [products, setProducts] = useState<any[]>([]); 
   
-  // Banner Settings (อัปเกรด V8)
+  // Filtering Logic
+  const [selectedCategory, setSelectedCategory] = useState("ทั้งหมด");
+
+  // Banner Settings
   const [bannerSettings, setBannerSettings] = useState({
-    bannerUrl: "https://images.unsplash.com/photo-1549417229-aa67d3263c09?w=2000",
+    bannerUrl: "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=2000", // รูปกล่องของขวัญ
     title: "ของขวัญพิเศษ แทนคำขอบคุณ",
     subtitle: "Privilege 2025",
-    // New Fields V8
     showAnnouncement: true,
     announcementText: "🎉 แลกรับได้ตั้งแต่วันนี้ - 15 มกราคม 2569 เท่านั้น!",
-    badgeText: "Happy New Year 2026 ✨"
   });
 
+  // Modal States
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false); 
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [selectedOption, setSelectedOption] = useState<string>('');
   const [viewingImage, setViewingImage] = useState<string | null>(null); 
+  
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
   
@@ -47,6 +55,11 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<any>(null); 
   const [editingOrder, setEditingOrder] = useState<any>(null);
   const [stats, setStats] = useState({ total: 0, pending: 0, completed: 0 });
+
+  // Check Order (Customer)
+  const [isCheckOrderOpen, setIsCheckOrderOpen] = useState(false);
+  const [checkOrderPhone, setCheckOrderPhone] = useState('');
+  const [myOrders, setMyOrders] = useState<any[] | null>(null);
 
   // --- FIX Viewport ---
   useEffect(() => {
@@ -105,10 +118,7 @@ export default function App() {
       const settingSnap = await getDoc(doc(db, "settings", "main"));
       if (settingSnap.exists()) {
         const data = settingSnap.data();
-        setBannerSettings({
-          ...bannerSettings, // ใช้ค่า default ถ้าไม่มีใน DB
-          ...data
-        }); 
+        setBannerSettings({ ...bannerSettings, ...data }); 
       } else {
         await setDoc(doc(db, "settings", "main"), bannerSettings);
       }
@@ -119,40 +129,56 @@ export default function App() {
     setLoading(false); 
   };
 
-  const handleImageUpload = (e: any) => {
+  // Helper function for resizing images
+  const resizeImage = (file: File, callback: (dataUrl: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = (event: any) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const MAX_WIDTH = 800; // Increased quality slightly
+        const MAX_HEIGHT = 800;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7); 
+        callback(dataUrl);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleProductImageUpload = (e: any) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event: any) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const MAX_WIDTH = 800;
-          const MAX_HEIGHT = 800;
+      resizeImage(file, (dataUrl) => {
+        setEditingProduct({ ...editingProduct, imageUrl: dataUrl });
+      });
+    }
+  };
 
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-          setEditingProduct({ ...editingProduct, imageUrl: dataUrl });
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
+  const handleBannerImageUpload = (e: any) => {
+    const file = e.target.files[0];
+    if (file) {
+      resizeImage(file, (dataUrl) => {
+        setBannerSettings({ ...bannerSettings, bannerUrl: dataUrl });
+      });
     }
   };
 
@@ -161,12 +187,13 @@ export default function App() {
         alert("ไม่มีข้อมูลออเดอร์ให้ Export ครับ");
         return;
     }
-    const headers = ["วันที่", "สถานะ", "ประเภทการรับ", "ชื่อลูกค้า", "เบอร์โทร", "สินค้า", "ตัวเลือก (Option)", "รหัสสินค้า", "ที่อยู่ / จุดนัดรับ", "วันนัดรับ", "หมายเหตุ"];
+    const headers = ["วันที่", "สถานะ", "Tracking No.", "ประเภทการรับ", "ชื่อลูกค้า", "เบอร์โทร", "สินค้า", "ตัวเลือก (Option)", "รหัสสินค้า", "ที่อยู่ / จุดนัดรับ", "วันนัดรับ", "หมายเหตุ"];
     const csvContent = [
       headers.join(","), 
       ...orders.map(o => {
         const date = o.timestamp?.toDate().toLocaleDateString('th-TH') || '-';
         const status = o.status === 'completed' ? 'จัดส่งแล้ว' : 'รอตรวจสอบ';
+        const tracking = `"${o.trackingNumber || '-'}"`; 
         const type = o.deliveryMethod || '-';
         const name = `"${o.name || ''}"`;
         const phone = `"${o.phone || ''}"`;
@@ -176,7 +203,7 @@ export default function App() {
         const address = `"${(o.address || '').replace(/\n/g, ' ')}"`;
         const pickupDate = o.pickupDate ? new Date(o.pickupDate).toLocaleString('th-TH') : '-';
         const remark = `"${o.remark || ''}"`;
-        return [date, status, type, name, phone, product, option, code, address, pickupDate, remark].join(",");
+        return [date, status, tracking, type, name, phone, product, option, code, address, pickupDate, remark].join(",");
       })
     ].join("\n");
 
@@ -188,6 +215,12 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleCheckOrderSearch = (e: any) => {
+      e.preventDefault();
+      const found = orders.filter(o => o.phone.trim() === checkOrderPhone.trim());
+      setMyOrders(found);
   };
 
   const handleSubmitOrder = async (e: any) => {
@@ -207,14 +240,18 @@ export default function App() {
             if (currentStock <= 0) {
                 alert("เสียใจด้วย สินค้าชิ้นนี้หมดพอดีครับ");
                 setLoading(false);
-                setView('home');
+                setIsOrderModalOpen(false); 
                 fetchContent();
                 return;
             }
 
+            const finalPickupDate = deliveryMethod === 'delivery' ? '' : formData.pickupDate;
+            const finalDeliveryText = deliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ';
+
             await addDoc(collection(db, "orders"), {
                 ...formData,
-                deliveryMethod: deliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ', 
+                pickupDate: finalPickupDate,
+                deliveryMethod: finalDeliveryText,
                 product: selectedProduct.name,
                 productId: selectedProduct.id,
                 productCode: selectedProduct.code || '-',
@@ -227,7 +264,11 @@ export default function App() {
 
             setFinalDeliveryMethod(deliveryMethod); 
             setLoading(false);
-            setView('success');
+            
+            // Switch Modals
+            setIsOrderModalOpen(false); 
+            setIsSuccessModalOpen(true); 
+
             fetchContent();
         }
     } catch (error: any) {
@@ -277,10 +318,10 @@ export default function App() {
           ...editingProduct,
           stock: parseInt(editingProduct.stock) || 0,
           code: editingProduct.code || '',
+          category: editingProduct.category || 'Lifestyle',
           isNew: editingProduct.isNew || false,
           options: optionsArray
       };
-      
       delete productData.optionsString;
 
       const isNew = !editingProduct.id;
@@ -317,9 +358,13 @@ export default function App() {
     if (!editingOrder) return;
     try {
       const { id, ...data } = editingOrder;
+      if (data.deliveryMethod === 'จัดส่งถึงบ้าน') {
+          data.pickupDate = '';
+      }
       await updateDoc(doc(db, "orders", id), data); 
       setEditingOrder(null);
       fetchOrders();
+      alert("บันทึกข้อมูลเรียบร้อย");
     } catch (err: any) { alert("บันทึกออเดอร์ไม่สำเร็จ: " + err.message); }
   };
 
@@ -336,12 +381,20 @@ export default function App() {
       setEditingProduct({ ...p, optionsString: optionsStr });
   };
 
+  // --- Filter Products ---
+  const getFilteredProducts = () => {
+      if (selectedCategory === "ทั้งหมด") {
+          return products;
+      }
+      return products.filter(p => p.category === selectedCategory);
+  };
+
   const Footer = () => (
     <footer className="w-full bg-white border-t border-gray-200 py-6 text-center mt-auto">
       <div className="container mx-auto px-4">
         <p className="text-gray-600 text-sm md:text-base">
           © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v8.0 (Celebration Edition)</span> 
+          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v12.0</span> 
         </p>
       </div>
     </footer>
@@ -359,82 +412,375 @@ export default function App() {
       );
   };
 
+  // --- Modal: Check Order ---
+  const renderCheckOrderModal = () => {
+    if (!isCheckOrderOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-slide-up">
+                <div className="bg-[#003781] p-4 flex justify-between items-center">
+                    <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                        <Package size={20}/> ติดตามสถานะพัสดุ
+                    </h3>
+                    <button onClick={() => {setIsCheckOrderOpen(false); setMyOrders(null); setCheckOrderPhone('')}} className="text-white/80 hover:text-white">
+                        <X size={24} />
+                    </button>
+                </div>
+                <div className="p-6">
+                    <form onSubmit={handleCheckOrderSearch} className="flex gap-2 mb-6">
+                        <input 
+                            type="tel" 
+                            className="flex-1 border rounded-xl p-3 text-gray-800 outline-none focus:ring-2 focus:ring-[#003781]"
+                            placeholder="กรอกเบอร์โทรศัพท์ของคุณ..."
+                            value={checkOrderPhone}
+                            onChange={e => setCheckOrderPhone(e.target.value)}
+                            autoFocus
+                        />
+                        <button type="submit" className="bg-[#003781] text-white px-6 rounded-xl font-bold hover:bg-[#002860]">
+                            ค้นหา
+                        </button>
+                    </form>
+
+                    <div className="space-y-4 max-h-[50vh] overflow-y-auto">
+                        {myOrders === null ? (
+                            <div className="text-center py-8 text-gray-400">
+                                <Search size={48} className="mx-auto mb-2 opacity-20"/>
+                                <p>กรอกเบอร์โทรเพื่อค้นหาออเดอร์</p>
+                            </div>
+                        ) : myOrders.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                                ไม่พบข้อมูลออเดอร์ของเบอร์นี้
+                            </div>
+                        ) : (
+                            myOrders.map(order => (
+                                <div key={order.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50 hover:bg-white hover:shadow-md transition-all">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <p className="font-bold text-[#003781]">{order.product}</p>
+                                            {order.productOption && order.productOption !== '-' && <span className="text-xs text-gray-500">({order.productOption})</span>}
+                                            <p className="text-xs text-gray-400 mt-1">วันที่แลก: {order.timestamp?.toDate().toLocaleDateString('th-TH')}</p>
+                                        </div>
+                                        {order.status === 'completed' ? (
+                                            <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                                                <CheckCircle size={12}/> จัดส่งแล้ว
+                                            </span>
+                                        ) : (
+                                            <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1">
+                                                <Clock size={12}/> รอดำเนินการ
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-sm text-gray-600 border-t border-gray-200 pt-2 mt-2">
+                                        <p className="flex items-center gap-2">
+                                            {order.deliveryMethod === 'จัดส่งถึงบ้าน' ? <Truck size={14}/> : <MapPin size={14}/>}
+                                            {order.deliveryMethod}
+                                        </p>
+                                        {order.trackingNumber && (
+                                            <div className="mt-2 bg-blue-50 p-2 border border-blue-100 rounded text-blue-800 text-sm font-mono flex items-center gap-2">
+                                                📦 <b>Track:</b> {order.trackingNumber}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+  }
+
+  // --- Modal: Success Popup (Revised) ---
+  const renderSuccessModal = () => {
+      if (!isSuccessModalOpen) return null;
+      return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => {setIsSuccessModalOpen(false); setView('home'); window.location.reload();}}></div>
+             
+             <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl relative animate-slide-up overflow-hidden max-h-[90vh] overflow-y-auto">
+                <div className="bg-[#003781] h-3"></div>
+                <div className="p-6 md:p-8 flex flex-col items-center text-center">
+                    <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4 shadow-sm border border-blue-100">
+                        <Gift className="text-[#003781] w-10 h-10 animate-bounce" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-[#003781] mb-2">ขอบคุณที่ร่วมกิจกรรม</h2>
+                    <p className="text-gray-500 text-sm mb-6">
+                        ระบบได้รับข้อมูลเรียบร้อยแล้ว <br/>
+                        สามารถตรวจสอบสถานะได้ที่ปุ่ม "ตรวจสอบสถานะ" <br/>
+                        <span className="font-bold text-orange-500">ภายใน 1-3 วันทำการ</span>
+                    </p>
+
+                    {/* Summary Card - ALL INFO */}
+                    <div className="w-full bg-gray-50 rounded-2xl p-5 border border-gray-200 mb-6 text-left relative overflow-hidden">
+                         <div className="absolute top-0 right-0 p-2 opacity-5"><Receipt size={100}/></div>
+                         <h3 className="font-bold text-gray-800 border-b border-gray-200 pb-2 mb-3 flex items-center gap-2 text-sm">
+                            <Receipt size={16}/> สรุปรายการ
+                         </h3>
+                         <div className="space-y-2 text-sm text-gray-700 relative z-10">
+                            <div className="grid grid-cols-[80px_1fr] gap-2">
+                                <span className="text-gray-500">สินค้า:</span>
+                                <span className="font-bold text-[#003781]">{selectedProduct?.name}</span>
+                            </div>
+                            {selectedOption && (
+                                <div className="grid grid-cols-[80px_1fr] gap-2">
+                                    <span className="text-gray-500">ตัวเลือก:</span>
+                                    <span className="font-bold">{selectedOption}</span>
+                                </div>
+                            )}
+                            <div className="grid grid-cols-[80px_1fr] gap-2">
+                                <span className="text-gray-500">ชื่อ:</span>
+                                <span className="font-bold">{formData.name}</span>
+                            </div>
+                            <div className="grid grid-cols-[80px_1fr] gap-2">
+                                <span className="text-gray-500">เบอร์โทร:</span>
+                                <span className="font-bold">{formData.phone}</span>
+                            </div>
+                            <div className="grid grid-cols-[80px_1fr] gap-2">
+                                <span className="text-gray-500">{finalDeliveryMethod === 'delivery' ? 'ที่อยู่:' : 'จุดนัดรับ:'}</span>
+                                <span className="font-medium break-words">{formData.address}</span>
+                            </div>
+                            {finalDeliveryMethod === 'pickup' && formData.pickupDate && (
+                                <div className="grid grid-cols-[80px_1fr] gap-2">
+                                    <span className="text-gray-500">เวลานัด:</span>
+                                    <span className="font-bold text-orange-600">{new Date(formData.pickupDate).toLocaleString('th-TH')}</span>
+                                </div>
+                            )}
+                            {formData.remark && (
+                                <div className="grid grid-cols-[80px_1fr] gap-2">
+                                    <span className="text-gray-500">หมายเหตุ:</span>
+                                    <span className="font-medium italic text-gray-600">{formData.remark}</span>
+                                </div>
+                            )}
+                         </div>
+                    </div>
+
+                    <div className="w-full space-y-3">
+                        <a href="https://line.me/R/ti/p/@386cqgdi" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-95 text-sm">
+                            <MessageCircle size={20} /> หากมีข้อสงสัย สอบถามที่ Line OA
+                        </a>
+                        <button onClick={() => {setIsSuccessModalOpen(false); setFormData({ name: '', phone: '', address: '', pickupDate: '', remark: '' }); setView('home'); window.location.reload();}} className="w-full bg-gray-100 text-gray-600 hover:text-[#003781] px-6 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all text-sm">
+                            ปิดหน้าต่าง
+                        </button>
+                    </div>
+                </div>
+             </div>
+        </div>
+      );
+  };
+
+  // --- Modal: Order Form ---
+  const renderOrderModal = () => {
+    if (!isOrderModalOpen || !selectedProduct) return null;
+    return (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center p-0 md:p-4">
+             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsOrderModalOpen(false)}></div>
+             
+             <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-4xl md:rounded-2xl shadow-2xl overflow-y-auto relative animate-slide-up flex flex-col">
+                <div className="sticky top-0 bg-white z-10 border-b p-4 flex justify-between items-center shadow-sm">
+                    <h3 className="font-bold text-lg md:text-xl text-[#003781] flex items-center gap-2">
+                        <ShoppingBag size={20}/> รายละเอียดการแลกของขวัญ
+                    </h3>
+                    <button onClick={() => setIsOrderModalOpen(false)} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200">
+                        <X size={24} className="text-gray-600"/>
+                    </button>
+                </div>
+                
+                <div className="p-4 md:p-8 flex flex-col md:flex-row gap-6 md:gap-8">
+                    {/* Left: Product Info */}
+                    <div className="w-full md:w-1/3 flex flex-col items-center text-center">
+                         <div className="relative w-full aspect-square rounded-xl overflow-hidden border border-gray-200 mb-4 group cursor-zoom-in" onClick={() => setViewingImage(selectedProduct.imageUrl)}>
+                            <img src={selectedProduct.imageUrl} className="w-full h-full object-cover"/>
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-all">
+                                <ZoomIn className="text-white opacity-0 group-hover:opacity-100 drop-shadow-md"/>
+                            </div>
+                         </div>
+                         <h2 className="text-xl font-bold text-gray-900 mb-2">{selectedProduct.name}</h2>
+                         <p className="text-sm text-gray-500 mb-4">{selectedProduct.description}</p>
+                         
+                         {/* Highlight: ใช้ 1 สิทธิ์ */}
+                         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 mb-4">
+                            <Star size={16} fill="currentColor"/> ใช้ 1 สิทธิ์
+                         </div>
+
+                         <div className={`text-sm font-bold px-3 py-1 rounded-full ${selectedProduct.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                             {selectedProduct.stock > 0 ? `เหลือ ${selectedProduct.stock} ชิ้น` : 'สินค้าหมด'}
+                         </div>
+                    </div>
+
+                    {/* Right: Form */}
+                    <div className="w-full md:w-2/3 border-t md:border-t-0 md:border-l border-gray-100 pt-6 md:pt-0 md:pl-8">
+                        <form onSubmit={handleSubmitOrder} className="space-y-6">
+                            {selectedProduct.options && selectedProduct.options.length > 0 && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-gray-800">เลือกแบบ / สี / ไซซ์ <span className="text-red-500">*</span></label>
+                                    <select required className="w-full p-3 rounded-xl border bg-gray-50 focus:bg-white focus:ring-2 focus:ring-[#003781] outline-none transition" value={selectedOption} onChange={(e) => setSelectedOption(e.target.value)}>
+                                        <option value="" disabled>-- กรุณาเลือก --</option>
+                                        {selectedProduct.options.map((opt: string, idx: number) => (
+                                            <option key={idx} value={opt}>{opt}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-bold text-gray-800">วิธีการรับของ <span className="text-red-500">*</span></label>
+                                <div className="flex gap-4">
+                                    <label className={`flex-1 p-4 rounded-xl border-2 cursor-pointer flex flex-col items-center gap-2 transition ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500'}`}>
+                                        <input type="radio" name="delivery" className="hidden" checked={deliveryMethod === 'delivery'} onChange={() => setDeliveryMethod('delivery')} />
+                                        <Truck size={24}/> <span className="text-sm font-bold">ส่งถึงบ้าน</span>
+                                    </label>
+                                    <label className={`flex-1 p-4 rounded-xl border-2 cursor-pointer flex flex-col items-center gap-2 transition ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500'}`}>
+                                        <input type="radio" name="delivery" className="hidden" checked={deliveryMethod === 'pickup'} onChange={() => setDeliveryMethod('pickup')} />
+                                        <Handshake size={24}/> <span className="text-sm font-bold">นัดรับเอง</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-sm font-bold text-gray-800 mb-1 block">ชื่อ-นามสกุล <span className="text-red-500">*</span></label>
+                                    <input required className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none" placeholder="ชื่อจริง" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-bold text-gray-800 mb-1 block">เบอร์โทร <span className="text-red-500">*</span></label>
+                                    <input required type="tel" className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none" placeholder="08x-xxx-xxxx" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-sm font-bold text-gray-800 mb-1 block">{deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'สถานที่นัดรับ'} <span className="text-red-500">*</span></label>
+                                <textarea required rows={2} className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none resize-none" placeholder={deliveryMethod === 'delivery' ? "บ้านเลขที่, ถนน, แขวง, เขต, จ.รหัสไปรษณีย์" : "ระบุจุดนัดพบให้ชัดเจน"} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+                            </div>
+
+                            {deliveryMethod === 'pickup' && (
+                                <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 animate-fade-in">
+                                    <label className="text-sm font-bold text-orange-800 mb-1 block">วันเวลานัดรับ <span className="text-red-500">*</span></label>
+                                    <input required type="datetime-local" className="w-full p-3 rounded-xl border bg-white focus:ring-2 focus:ring-[#003781] outline-none" value={formData.pickupDate} onChange={e => setFormData({...formData, pickupDate: e.target.value})} />
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="text-sm font-bold text-gray-500 mb-1 block">หมายเหตุ (ถ้ามี)</label>
+                                <input className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none" placeholder="ฝากข้อความถึงผู้ส่ง" value={formData.remark} onChange={e => setFormData({...formData, remark: e.target.value})} />
+                            </div>
+
+                            <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-4 active:scale-95 flex items-center justify-center gap-3">
+                                {loading ? 'กำลังบันทึก...' : <><CheckCircle size={24}/> ยืนยันสิทธิ์</>}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+             </div>
+        </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800 flex flex-col w-full overflow-x-hidden max-w-[100vw]">
       
       <ImageModal />
+      {renderCheckOrderModal()} 
+      {renderOrderModal()}
+      {renderSuccessModal()} 
 
-      {/* --- FEATURE V8: Announcement Bar --- */}
-      {view === 'home' && bannerSettings.showAnnouncement && bannerSettings.announcementText && (
-          <div className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-center py-2 px-4 text-xs md:text-sm font-bold shadow-md relative z-[60] flex justify-center items-center gap-2">
-              <Megaphone size={16} className="animate-pulse hidden md:block"/>
-              <span>{bannerSettings.announcementText}</span>
+      {/* Navbar (FIXED TOP - FREEZE) */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md border-b border-[#003781]/10 h-[70px] md:h-[80px]">
+        <div className="w-full max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
+          <div onClick={() => setView('home')} className="cursor-pointer flex items-center gap-3">
+             {/* Logo Icon */}
+             <div className="bg-blue-50 p-2 rounded-xl border border-blue-100 hidden md:block">
+                 <Gift className="text-[#003781]" size={32}/>
+             </div>
+             <div className="md:hidden">
+                 <Gift className="text-[#003781]" size={28}/>
+             </div>
+             
+             {/* Logo Text */}
+             <div className="flex flex-col leading-none">
+                <span className="text-[#003781] font-extrabold text-xl md:text-2xl tracking-tight uppercase">Allianz</span>
+                <span className="text-gray-400 font-bold text-[10px] md:text-xs tracking-widest uppercase mt-0.5">Privilege Gift 2025</span>
+             </div>
           </div>
-      )}
 
-      {/* Navbar */}
-      <div className="bg-white shadow-sm sticky top-0 z-50 w-full">
-        <div className="w-full max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div onClick={() => setView('home')} className="cursor-pointer text-[#003781] font-bold text-xl md:text-2xl flex items-center gap-2">
-            Allianz <span className="text-gray-400 font-light">Ayudhya</span> 
+          <div className="flex items-center gap-2 md:gap-3">
+            {view === 'home' && (
+                <button onClick={() => setIsCheckOrderOpen(true)} className="flex items-center gap-2 text-xs md:text-sm font-bold text-[#003781] bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition border border-blue-100 shadow-sm">
+                    <Truck size={18}/> 
+                    <span>ตรวจสอบสถานะ</span>
+                </button>
+            )}
+            
+            {view !== 'admin' && view !== 'login' && (
+                <button onClick={() => setView('login')} className="text-gray-300 hover:text-[#003781] p-2 transition-colors">
+                  <Lock size={20} /> 
+                </button>
+            )}
           </div>
-          {view !== 'admin' && view !== 'login' && (
-            <button onClick={() => setView('login')} className="text-gray-300 hover:text-[#003781] p-2">
-              <Lock size={20} /> 
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-grow w-full py-6">
+      {/* Main Content (Added padding-top for fixed header) */}
+      <div className="flex-grow w-full py-6 mt-[70px] md:mt-[80px]">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-6">
         
         {/* VIEW: HOME */}
         {view === 'home' && (
            <div className="animate-fade-in w-full overflow-hidden">
-            {/* Banner */}
-            <div className="relative w-full aspect-[21/9] min-h-[200px] max-h-[400px] rounded-2xl overflow-hidden shadow-xl mb-8 md:mb-12 group">
-              <img src={bannerSettings.bannerUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="Banner"/>
-              
-              {/* --- FEATURE V8: Festive Badge (มุมขวาบน) --- */}
-              {bannerSettings.badgeText && (
-                  <div className="absolute top-4 right-4 md:top-6 md:right-6 bg-white/95 backdrop-blur-sm shadow-xl border-2 border-yellow-400 text-[#003781] px-4 py-2 md:px-6 md:py-3 rounded-xl rotate-3 transform hover:rotate-0 transition-all duration-300 z-10 cursor-default">
-                      <div className="flex items-center gap-2 font-bold text-xs md:text-lg whitespace-nowrap">
-                          <Sparkles className="text-yellow-500 animate-spin-slow" size={18}/>
-                          {bannerSettings.badgeText}
-                      </div>
-                  </div>
-              )}
+            {/* Announcement below fixed header */}
+             {bannerSettings.showAnnouncement && bannerSettings.announcementText && (
+                <div className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-center py-2 px-4 text-xs md:text-sm font-bold relative rounded-lg shadow-sm mb-4 flex justify-center items-center gap-2">
+                    <Megaphone size={16} className="animate-pulse hidden md:block"/>
+                    <span>{bannerSettings.announcementText}</span>
+                </div>
+            )}
 
-              <div className="absolute inset-0 bg-gradient-to-r from-[#003781]/95 via-[#003781]/70 to-transparent flex items-center p-6 md:p-12">
+            {/* Banner */}
+            <div className="relative w-full aspect-[21/9] min-h-[220px] max-h-[400px] rounded-2xl overflow-hidden shadow-xl mb-6 group">
+              <img src={bannerSettings.bannerUrl} className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="Banner"/>
+              <div className="absolute inset-0 bg-gradient-to-r from-[#003781]/90 via-[#003781]/60 to-transparent flex items-center p-6 md:p-12">
                  <div className="text-white w-full max-w-xl">
-                    <span className="bg-white/20 backdrop-blur text-xs md:text-sm px-3 py-1 rounded-full mb-3 inline-block border border-white/30 shadow-sm">
+                    <span className="bg-white/20 backdrop-blur text-xs md:text-sm px-3 py-1 rounded-full mb-3 inline-block border border-white/30 shadow-sm text-yellow-300 font-bold">
                       {bannerSettings.subtitle} 
                     </span>
-                    <h1 className="text-xl md:text-5xl lg:text-6xl font-bold mb-4 leading-tight drop-shadow-lg whitespace-pre-line break-words">
+                    <h1 className="text-2xl md:text-5xl lg:text-6xl font-extrabold mb-4 leading-tight drop-shadow-lg whitespace-pre-line break-words text-white">
                       {bannerSettings.title} 
                     </h1>
-                    <button onClick={() => document.getElementById('products-grid')?.scrollIntoView({behavior:'smooth'})} className="bg-white text-[#003781] px-5 py-2 md:px-6 md:py-3 rounded-xl text-sm md:text-base font-bold shadow-lg hover:bg-blue-50 transition active:scale-95">
-                      เลือกของขวัญ
+                    <button onClick={() => document.getElementById('products-grid')?.scrollIntoView({behavior:'smooth'})} className="bg-white text-[#003781] px-5 py-2 md:px-6 md:py-3 rounded-xl text-sm md:text-base font-bold shadow-lg hover:bg-blue-50 transition active:scale-95 flex items-center gap-2">
+                      เลือกของขวัญ <ChevronRight size={18}/>
                     </button>
                  </div>
               </div>
             </div>
 
-            <div id="products-grid" className="mb-6 flex items-center gap-2 text-xl md:text-2xl font-bold text-gray-800">
-               <ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น
+            {/* Filter Categories */}
+            <div id="products-grid" className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                   <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2"><ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น</h2>
+                </div>
+                
+                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                    {PRODUCT_CATEGORIES.map((cat) => (
+                        <button 
+                            key={cat}
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${selectedCategory === cat ? 'bg-[#003781] text-white border-[#003781] shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                        >
+                            {cat}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Grid System */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8 w-full">
-              {products.filter(p => p.active).map((p) => {
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 w-full pb-10">
+              {getFilteredProducts().filter(p => p.active).map((p) => {
                 const isOutOfStock = (p.stock || 0) <= 0;
                 return (
-                  <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full relative">
+                  <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full relative h-full">
                     {p.isNew && (
                         <div className="absolute top-2 left-2 z-10 bg-red-600 text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded shadow-md flex items-center gap-1">
-                            <Tag size={12}/> New Arrival
+                            <Tag size={12}/> New
                         </div>
                     )}
                     <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100 cursor-zoom-in" onClick={() => setViewingImage(p.imageUrl)}>
@@ -448,19 +794,13 @@ export default function App() {
                           </div>
                       )}
                     </div>
-                    <div className="p-3 md:p-5 flex flex-col flex-grow">
-                      <div className="text-[10px] md:text-xs text-gray-400 mb-1 font-mono uppercase tracking-wide">
-                          Code: {p.code || '-'}
+                    <div className="p-3 md:p-4 flex flex-col flex-grow">
+                      <div className="text-[10px] text-gray-400 mb-1 font-mono uppercase tracking-wide flex justify-between">
+                          <span>{p.code || '-'}</span>
+                          <span className="text-[#003781] font-bold">{p.category}</span>
                       </div>
-                      <h3 className="font-bold text-sm md:text-xl text-gray-900 mb-1 md:mb-2 line-clamp-1">{p.name}</h3>
-                      <p className="text-gray-500 text-xs md:text-sm mb-2 flex-grow line-clamp-2">{p.description}</p>
-                      {p.options && p.options.length > 0 && (
-                          <div className="mb-2">
-                              <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md border border-gray-200">
-                                มี {p.options.length} ตัวเลือก
-                              </span>
-                          </div>
-                      )}
+                      <h3 className="font-bold text-sm md:text-base text-gray-900 mb-1 line-clamp-1">{p.name}</h3>
+                      <p className="text-gray-500 text-xs mb-2 flex-grow line-clamp-2">{p.description}</p>
                       <div className="flex justify-between items-center mb-3">
                          <span className={`text-xs font-bold ${isOutOfStock ? 'text-red-500' : 'text-green-600'}`}>
                              {isOutOfStock ? 'หมดแล้ว' : `เหลือ ${p.stock} ชิ้น`}
@@ -468,8 +808,8 @@ export default function App() {
                       </div>
                       <button 
                         disabled={isOutOfStock}
-                        onClick={() => { setSelectedProduct(p); setSelectedOption(''); setView('form'); }} 
-                        className={`w-full py-2 md:py-3 rounded-lg md:rounded-xl font-bold text-xs md:text-base shadow-lg transition-all active:scale-95 ${isOutOfStock ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#003781] text-white hover:bg-[#002860] hover:shadow-blue-900/10'}`}
+                        onClick={() => { setSelectedProduct(p); setSelectedOption(''); setDeliveryMethod('delivery'); setFormData({ name: '', phone: '', address: '', pickupDate: '', remark: '' }); setIsOrderModalOpen(true); }} 
+                        className={`w-full py-2 rounded-lg font-bold text-xs md:text-sm shadow-md transition-all active:scale-95 ${isOutOfStock ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#003781] text-white hover:bg-[#002860]'}`}
                       >
                         {isOutOfStock ? 'สินค้าหมด' : 'แลกรับสิทธิ์'}
                       </button> 
@@ -477,178 +817,14 @@ export default function App() {
                   </div>
                 );
               })}
+              {getFilteredProducts().filter(p => p.active).length === 0 && (
+                  <div className="col-span-full py-12 text-center text-gray-400">
+                      <Package size={48} className="mx-auto mb-2 opacity-30"/>
+                      <p>ไม่มีสินค้าในหมวดหมู่นี้</p>
+                  </div>
+              )}
             </div>
            </div>
-        )}
-
-        {/* VIEW: FORM */}
-        {view === 'form' && selectedProduct && (
-          <div className="w-full max-w-4xl mx-auto animate-slide-up pb-10">
-            <button onClick={() => setView('home')} className="mb-4 text-gray-500 hover:text-[#003781] flex items-center gap-2 font-medium transition-colors text-sm md:text-base">
-              <ArrowLeft size={20} /> ย้อนกลับไปเลือกสินค้า 
-            </button>
-            <div className="bg-white rounded-xl md:rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full">
-              <div className="bg-blue-50/50 p-4 md:p-8 border-b flex flex-col sm:flex-row gap-4 md:gap-6 items-center sm:items-start text-center sm:text-left">
-                 <div className="relative group cursor-pointer" onClick={() => setViewingImage(selectedProduct.imageUrl)}>
-                    <img src={selectedProduct.imageUrl} className="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md bg-white border-4 border-white flex-shrink-0" />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-all rounded-xl">
-                        <ZoomIn className="text-white opacity-0 group-hover:opacity-100 drop-shadow-md"/>
-                    </div>
-                 </div>
-                 <div className="w-full">
-                   <div className="text-[#003781] text-xs md:text-sm font-bold uppercase mb-1 tracking-wide">
-                       CODE: {selectedProduct.code || '-'}
-                   </div>
-                   <h2 className="text-xl md:text-3xl font-bold text-gray-900 leading-tight mb-2">{selectedProduct.name}</h2> 
-                   <p className="text-gray-600 text-sm md:text-base mb-2">{selectedProduct.description}</p>
-                   <div className="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-bold">
-                       สถานะ: มีสินค้า ({selectedProduct.stock})
-                   </div>
-                 </div>
-              </div>
-              <div className="p-4 md:p-10 w-full">
-                <form onSubmit={handleSubmitOrder} className="space-y-6 w-full">
-                  {selectedProduct.options && selectedProduct.options.length > 0 && (
-                      <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-xl animate-fade-in">
-                          <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2">
-                             <Layers size={18} className="text-[#003781]"/> กรุณาเลือกแบบ / สี / ไซซ์
-                          </label>
-                          <select required className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" value={selectedOption} onChange={(e) => setSelectedOption(e.target.value)}>
-                              <option value="" disabled>-- กรุณาเลือกตัวเลือก --</option>
-                              {selectedProduct.options.map((opt: string, index: number) => (
-                                  <option key={index} value={opt}>{opt}</option>
-                              ))}
-                          </select>
-                      </div>
-                  )}
-                  <div className="w-full">
-                    <label className="block text-sm font-bold text-gray-700 mb-3">เลือกวิธีการรับของขวัญ</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6">
-                      <div onClick={() => setDeliveryMethod('delivery')} className={`w-full cursor-pointer rounded-xl p-4 md:p-6 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[120px] ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                        <Truck size={32} className="mb-1" />
-                        <span className="font-bold text-sm md:text-lg text-center">จัดส่งถึงบ้าน</span>
-                      </div>
-                      <div onClick={() => setDeliveryMethod('pickup')} className={`w-full cursor-pointer rounded-xl p-4 md:p-6 border-2 flex flex-col items-center justify-center gap-2 transition-all h-full min-h-[120px] ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                        <Handshake size={32} className="mb-1" />
-                        <span className="font-bold text-sm md:text-lg text-center">สะดวกนัดรับ</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="w-full space-y-4 md:space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 w-full">
-                          <div>
-                              <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2"><User size={18} className="text-[#003781]"/> ชื่อ-นามสกุล</label>
-                              <input required className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" placeholder="ระบุชื่อจริง นามสกุล" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                          </div>
-                          <div>
-                              <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2"><Phone size={18} className="text-[#003781]"/> เบอร์โทรศัพท์</label>
-                              <input required type="tel" className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" placeholder="เช่น 0891234567" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} /> 
-                          </div>
-                      </div>
-                      <div>
-                        <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2"><MapPin size={18} className="text-[#003781]"/> {deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'ระบุสถานที่นัดรับ'} </label>
-                        <textarea required rows={3} className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base resize-none leading-relaxed" placeholder={deliveryMethod === 'delivery' ? "บ้านเลขที่, หมู่บ้าน/คอนโด, ซอย, ถนน\nแขวง/ตำบล, เขต/อำเภอ\nจังหวัด, รหัสไปรษณีย์" : "ระบุจุดนัดพบให้ชัดเจน เช่น \n- BTS สยาม ทางออก 1\n- เซ็นทรัลลาดพร้าว หน้า Uniqlo\n- บ้านเลขที่... (บ้านตัวแทน/ลูกค้า)"} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
-                      </div>
-                      {deliveryMethod === 'pickup' ? (
-                        <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-100 w-full animate-fade-in">
-                          <label className="flex items-center gap-2 text-sm font-bold text-gray-800 mb-2"><Calendar size={18} className="text-[#003781]"/> เลือกวันและเวลานัดรับ</label>
-                          <input required type="datetime-local" className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" value={formData.pickupDate} onChange={e => setFormData({...formData, pickupDate: e.target.value})} />
-                        </div>
-                      ) : (
-                        <div className="bg-transparent p-4 rounded-xl border border-transparent w-full opacity-0 pointer-events-none select-none" aria-hidden="true">
-                           <div className="w-full px-4 py-3 rounded-xl border border-transparent text-base">dummy input</div>
-                        </div>
-                      )}
-                      <div className="w-full">
-                        <label className="flex items-center gap-2 text-sm font-bold text-gray-600 mb-2"><FileText size={18} /> หมายเหตุ (ถ้ามี)</label>
-                        <input className="w-full px-4 py-3 rounded-xl border border-gray-300 text-gray-900 bg-white focus:ring-2 focus:ring-[#003781] outline-none transition text-base" placeholder="ฝากข้อความถึงผู้ส่ง" value={formData.remark} onChange={e => setFormData({...formData, remark: e.target.value})} />
-                      </div>
-                  </div>
-                  <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-8 active:scale-95 flex items-center justify-center gap-3">
-                    {loading ? 'กำลังบันทึก...' : <><CheckCircle size={24}/> ยืนยันการรับสิทธิ์</>}
-                  </button>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VIEW: SUCCESS */}
-        {view === 'success' && (
-          <div className="w-full max-w-2xl mx-auto animate-slide-up pb-10">
-             <div className="bg-white rounded-xl md:rounded-2xl shadow-lg border border-gray-200 overflow-hidden w-full p-6 md:p-10 flex flex-col items-center justify-center text-center">
-                <div className="w-20 h-20 md:w-24 md:h-24 bg-green-100 rounded-full flex items-center justify-center mb-6">
-                  <CheckCircle className="text-green-600 w-10 h-10 md:w-12 md:h-12" />
-                </div>
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">บันทึกข้อมูลสำเร็จ!</h2>
-                
-                <div className="bg-blue-50 p-4 md:p-6 rounded-xl border border-blue-100 mb-8 w-full text-center">
-                  <p className="text-[#003781] leading-relaxed text-base md:text-lg font-bold">
-                    {finalDeliveryMethod === 'delivery' 
-                      ? "ขอบคุณที่ร่วมกิจกรรมกับเรา ทางเราจะจัดส่งของขวัญให้ท่านโดยเร็วที่สุด"
-                      : "ขอบคุณที่ร่วมกิจกรรมกับเรา ทางเราจะติดต่อ Confirm วันเวลาสะดวกในการนัดรับของขวัญกับท่านโดยเร็วที่สุด"
-                    }
-                  </p>
-                </div>
-
-                <div className="w-full bg-gray-50 rounded-xl border border-dashed border-gray-300 p-6 mb-8 text-left relative">
-                   <div className="flex items-center gap-2 mb-4 border-b border-gray-200 pb-2">
-                      <Receipt size={20} className="text-gray-500"/>
-                      <span className="font-bold text-gray-700 text-lg">สรุปรายการ (Summary)</span>
-                   </div>
-                   <div className="space-y-3 text-sm md:text-base text-gray-700">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">รหัสสินค้า:</span>
-                        <span className="font-bold text-right font-mono">{selectedProduct.code}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">สินค้า:</span>
-                        <span className="font-bold text-right">{selectedProduct.name}</span>
-                      </div>
-                      {selectedOption && (
-                          <div className="flex justify-between bg-yellow-50 p-2 rounded border border-yellow-100 -mx-2">
-                            <span className="text-gray-700 font-bold">ตัวเลือก:</span>
-                            <span className="font-bold text-right text-[#003781]">{selectedOption}</span>
-                          </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">วิธีรับ:</span>
-                        <span className="font-bold text-right text-[#003781]">{finalDeliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ'}</span> 
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">ชื่อผู้รับ:</span>
-                        <span className="font-bold text-right">{formData.name}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">เบอร์โทร:</span>
-                        <span className="font-bold text-right">{formData.phone}</span>
-                      </div>
-                      <div className="flex justify-between items-start">
-                        <span className="text-gray-500 whitespace-nowrap">ที่อยู่/นัดรับ:</span>
-                        <span className="font-bold text-right ml-4 text-xs md:text-base">{formData.address}</span>
-                      </div>
-                      {finalDeliveryMethod === 'pickup' && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-500">เวลานัดหมาย:</span>
-                          <span className="font-bold text-right text-orange-600">{new Date(formData.pickupDate).toLocaleString('th-TH')}</span> 
-                        </div>
-                      )}
-                      <div className="pt-2 border-t border-gray-200 mt-2 text-xs text-gray-400 text-center">
-                        รหัสอ้างอิง: {new Date().getTime().toString().slice(-6)}
-                      </div>
-                   </div>
-                </div>
-
-                <div className="w-full max-w-sm space-y-4">
-                  <a href="https://line.me/R/ti/p/@386cqgdi" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-95 text-base">
-                    <MessageCircle size={22} /> Line OA นัท อลิอันซ์ 
-                  </a>
-                  <button onClick={() => window.location.reload()} className="w-full bg-gray-100 text-gray-600 hover:text-[#003781] px-10 py-3.5 rounded-xl font-bold hover:bg-gray-200 transition-all text-base">
-                    กลับสู่หน้าหลัก
-                  </button>
-                </div>
-             </div>
-          </div>
         )}
 
         {/* VIEW: LOGIN */}
@@ -674,6 +850,8 @@ export default function App() {
                  <button onClick={() => setView('home')} className="flex-1 md:flex-none justify-center px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg flex items-center gap-2 whitespace-nowrap"><LogOut size={16}/> ออก</button>
                </div>
              </div>
+             
+             {/* Stats */}
              <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6">
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center">
                     <span className="text-gray-500 text-xs md:text-sm font-bold">ออเดอร์ทั้งหมด</span>
@@ -708,14 +886,48 @@ export default function App() {
                         <button onClick={exportToCSV} className="w-full md:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition"><Download size={18}/> Export Excel</button>
                     </div>
 
+                    {/* EDIT ORDER MODAL */}
                     {editingOrder && (
                       <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl w-full max-w-lg p-6 shadow-2xl animate-slide-up">
-                          <div className="flex justify-between mb-4"><h3 className="text-xl font-bold">แก้ไขออเดอร์</h3><button onClick={() => setEditingOrder(null)}><X className="text-gray-400 hover:text-red-500"/></button></div>
-                          <form onSubmit={handleSaveOrder} className="space-y-3">
-                            <div><label className="text-xs text-gray-500">ชื่อลูกค้า</label><input required className="w-full p-2 border rounded text-gray-900" value={editingOrder.name} onChange={e => setEditingOrder({...editingOrder, name: e.target.value})} /></div>
-                            <div><label className="text-xs text-gray-500">เบอร์โทร</label><input required className="w-full p-2 border rounded text-gray-900" value={editingOrder.phone} onChange={e => setEditingOrder({...editingOrder, phone: e.target.value})} /></div>
-                            <div><label className="text-xs text-gray-500">ที่อยู่ / จุดนัดรับ</label><textarea required rows={3} className="w-full p-2 border rounded text-gray-900" value={editingOrder.address} onChange={e => setEditingOrder({...editingOrder, address: e.target.value})} /></div>
+                        <div className="bg-white rounded-xl w-full max-w-lg p-6 shadow-2xl animate-slide-up max-h-[90vh] overflow-y-auto">
+                          <div className="flex justify-between mb-4"><h3 className="text-xl font-bold flex items-center gap-2"><Edit size={20} className="text-[#003781]"/> แก้ไขข้อมูลออเดอร์</h3><button onClick={() => setEditingOrder(null)}><X className="text-gray-400 hover:text-red-500"/></button></div>
+                          <form onSubmit={handleSaveOrder} className="space-y-4">
+                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                <h4 className="text-sm font-bold text-gray-700 mb-2">ข้อมูลลูกค้า</h4>
+                                <div className="space-y-3">
+                                    <div><label className="text-xs text-gray-500 font-bold">ชื่อลูกค้า</label><input required className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.name} onChange={e => setEditingOrder({...editingOrder, name: e.target.value})} /></div>
+                                    <div><label className="text-xs text-gray-500 font-bold">เบอร์โทร</label><input required className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.phone} onChange={e => setEditingOrder({...editingOrder, phone: e.target.value})} /></div>
+                                </div>
+                            </div>
+                            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                 <h4 className="text-sm font-bold text-[#003781] mb-2">การจัดส่ง & สถานะ</h4>
+                                 <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs text-gray-500 font-bold">วิธีรับของ</label>
+                                            <select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.deliveryMethod} onChange={e => setEditingOrder({...editingOrder, deliveryMethod: e.target.value})}>
+                                                <option value="จัดส่งถึงบ้าน">จัดส่งถึงบ้าน</option>
+                                                <option value="นัดรับ">นัดรับ</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-gray-500 font-bold">สถานะ</label>
+                                            <select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.status} onChange={e => setEditingOrder({...editingOrder, status: e.target.value})}>
+                                                <option value="pending">รอดำเนินการ</option>
+                                                <option value="completed">เสร็จสิ้น/ส่งแล้ว</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs text-gray-500 font-bold flex items-center gap-1"><Truck size={12}/> เลขพัสดุ (Tracking)</label>
+                                        <input className="w-full p-2 border rounded text-gray-900 bg-white placeholder-gray-400" placeholder="เช่น Kerry: KER123..." value={editingOrder.trackingNumber || ''} onChange={e => setEditingOrder({...editingOrder, trackingNumber: e.target.value})} />
+                                    </div>
+                                    <div><label className="text-xs text-gray-500 font-bold">ที่อยู่ / จุดนัดรับ</label><textarea required rows={3} className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.address} onChange={e => setEditingOrder({...editingOrder, address: e.target.value})} /></div>
+                                    {editingOrder.deliveryMethod === 'นัดรับ' && (
+                                         <div><label className="text-xs text-gray-500 font-bold text-orange-600">เวลานัดรับ</label><input type="datetime-local" className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.pickupDate || ''} onChange={e => setEditingOrder({...editingOrder, pickupDate: e.target.value})} /></div>
+                                    )}
+                                 </div>
+                            </div>
                             <div className="pt-2 flex gap-3"><button type="submit" className="flex-1 bg-[#003781] text-white py-2 rounded-lg font-bold">บันทึก</button></div>
                           </form>
                         </div>
@@ -758,7 +970,8 @@ export default function App() {
                              <td className="p-3 text-gray-600 min-w-[200px] text-xs">
                                 {order.address}
                                 {order.remark && <div className="text-gray-400 italic mt-1">Note: {order.remark}</div>}
-                                {order.pickupDate && <div className="mt-1 text-orange-600 font-bold flex items-center gap-1"><Clock size={10}/> นัด: {new Date(order.pickupDate).toLocaleString('th-TH')}</div>}
+                                {order.deliveryMethod === 'นัดรับ' && order.pickupDate && <div className="mt-1 text-orange-600 font-bold flex items-center gap-1"><Clock size={10}/> นัด: {new Date(order.pickupDate).toLocaleString('th-TH')}</div>}
+                                {order.trackingNumber && <div className="mt-1 text-blue-600 font-mono bg-blue-50 px-1 rounded w-fit">📦 {order.trackingNumber}</div>}
                              </td>
                              <td className="p-3 text-center flex gap-1 justify-center">
                                <button onClick={() => setEditingOrder(order)} className="p-1.5 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"><Edit size={14}/></button>
@@ -792,6 +1005,15 @@ export default function App() {
                                 <div><label className="text-xs text-gray-500 font-bold">รหัสสินค้า</label><input required className="w-full p-2 border rounded text-gray-900 bg-gray-50" placeholder="เช่น ABC-001" value={editingProduct.code || ''} onChange={e => setEditingProduct({...editingProduct, code: e.target.value})} /></div>
                                 <div><label className="text-xs text-gray-500 font-bold">จำนวนสต็อก</label><input required type="number" className="w-full p-2 border rounded text-gray-900 bg-gray-50" placeholder="0" value={editingProduct.stock || 0} onChange={e => setEditingProduct({...editingProduct, stock: e.target.value})} /></div>
                             </div>
+                            <div>
+                                <label className="text-xs text-gray-500 font-bold">หมวดหมู่ (Category)</label>
+                                <div className="flex gap-2">
+                                    <select className="flex-1 p-2 border rounded text-gray-900 bg-white" value={editingProduct.category || 'Lifestyle'} onChange={e => setEditingProduct({...editingProduct, category: e.target.value})}>
+                                        {PRODUCT_CATEGORIES.filter(c => c !== "ทั้งหมด").map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    <input className="flex-1 p-2 border rounded text-gray-900 bg-white" placeholder="หรือพิมพ์เอง..." value={editingProduct.category || ''} onChange={e => setEditingProduct({...editingProduct, category: e.target.value})} />
+                                </div>
+                            </div>
                             <div><label className="text-xs text-gray-500 font-bold">ชื่อสินค้า</label><input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.name || ''} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} /></div>
                             <div><label className="text-xs text-gray-500 font-bold">รายละเอียด</label><input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.description || ''} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} /></div>
                             <div>
@@ -800,7 +1022,7 @@ export default function App() {
                             </div>
                             <div className="border p-3 rounded-lg bg-gray-50">
                                 <label className="text-xs text-gray-500 font-bold mb-2 block">รูปสินค้า</label>
-                                <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full mb-2 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700"/>
+                                <input type="file" accept="image/*" onChange={handleProductImageUpload} className="w-full mb-2 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700"/>
                                 <input className="w-full p-2 border rounded text-gray-900 text-sm" placeholder="วางลิงก์รูปภาพ (URL)" value={editingProduct.imageUrl || ''} onChange={e => setEditingProduct({...editingProduct, imageUrl: e.target.value})} />
                                 {editingProduct.imageUrl && <div className="mt-2 text-center"><img src={editingProduct.imageUrl} className="h-20 mx-auto rounded border bg-white object-contain"/></div>}
                             </div>
@@ -817,7 +1039,11 @@ export default function App() {
                           {p.isNew && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] px-1.5 rounded">New</span>}
                           <img src={p.imageUrl} className="w-20 h-20 rounded object-cover bg-gray-200 flex-shrink-0 border"/>
                           <div className="flex-grow min-w-0">
-                            <div className="flex justify-between items-start"><div className="font-bold text-gray-900 truncate">{p.name}</div><div className="text-xs font-mono bg-gray-100 px-1 rounded text-gray-500">{p.code}</div></div>
+                            <div className="flex justify-between items-start">
+                                <div className="font-bold text-gray-900 truncate">{p.name}</div>
+                                <div className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{p.category}</div>
+                            </div>
+                            <div className="text-xs font-mono text-gray-400 mb-1">{p.code}</div>
                             <div className="text-xs text-gray-500 mb-1 truncate">{p.description}</div>
                             {p.options && p.options.length > 0 && <div className="text-[10px] text-gray-500 bg-gray-50 border rounded px-1 py-0.5 inline-block mb-1">ตัวเลือก: {p.options.join(', ')}</div>}
                             <div className="text-xs font-bold mb-2 text-blue-600">Stock: {p.stock}</div>
@@ -833,13 +1059,11 @@ export default function App() {
                  </div>
                )}
 
-               {/* TAB: SETTINGS (UPDATED V8) */}
+               {/* TAB: SETTINGS */}
                {adminTab === 'settings' && (
                  <div className="max-w-xl">
                    <h3 className="font-bold text-lg mb-4 border-b pb-2">ตั้งค่าหน้าเว็บ</h3>
-                   
                    <div className="space-y-4">
-                     {/* --- New Settings Section --- */}
                      <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
                         <label className="text-sm font-bold text-gray-800 mb-2 block flex items-center gap-2">
                            <Megaphone size={16}/> แถบประกาศด้านบน (Top Bar)
@@ -850,34 +1074,21 @@ export default function App() {
                         </div>
                         <input className="w-full p-2 border rounded-lg text-gray-900 text-sm" placeholder="ใส่ข้อความประกาศ..." value={bannerSettings.announcementText} onChange={e => setBannerSettings({...bannerSettings, announcementText: e.target.value})} />
                      </div>
-
-                     <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
-                        <label className="text-sm font-bold text-gray-800 mb-2 block flex items-center gap-2">
-                           <Sparkles size={16}/> ป้ายติดมุมแบนเนอร์ (Corner Badge)
-                        </label>
-                        <input className="w-full p-2 border rounded-lg text-gray-900 text-sm" placeholder="เช่น Happy New Year 2026" value={bannerSettings.badgeText} onChange={e => setBannerSettings({...bannerSettings, badgeText: e.target.value})} />
-                        <p className="text-[10px] text-gray-500 mt-1">* หากเว้นว่างไว้ ป้ายจะหายไปเอง</p>
-                     </div>
-                     {/* ----------------------------- */}
-
-                     <div>
-                       <label className="block text-sm font-bold text-gray-700 mb-1">หัวข้อหลัก (Banner Title)</label>
-                       <textarea rows={2} className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.title} onChange={e => setBannerSettings({...bannerSettings, title: e.target.value})} />
-                     </div>
+                     <div><label className="block text-sm font-bold text-gray-700 mb-1">หัวข้อหลัก (Banner Title)</label><textarea rows={2} className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.title} onChange={e => setBannerSettings({...bannerSettings, title: e.target.value})} /></div>
+                     <div><label className="block text-sm font-bold text-gray-700 mb-1">ข้อความรอง (Subtitle / Badge)</label><input className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.subtitle} onChange={e => setBannerSettings({...bannerSettings, subtitle: e.target.value})} /></div>
                      
-                     <div>
-                       <label className="block text-sm font-bold text-gray-700 mb-1">ข้อความรอง (Subtitle / Badge)</label>
-                       <input className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.subtitle} onChange={e => setBannerSettings({...bannerSettings, subtitle: e.target.value})} />
+                     <div className="border p-4 rounded-xl bg-gray-50">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">รูปแบนเนอร์ (Banner Image)</label>
+                        <input type="file" accept="image/*" onChange={handleBannerImageUpload} className="w-full mb-3 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"/>
+                        <input className="w-full p-3 border rounded-xl text-gray-900 text-sm" placeholder="หรือใส่ URL รูปภาพ..." value={bannerSettings.bannerUrl} onChange={e => setBannerSettings({...bannerSettings, bannerUrl: e.target.value})} />
+                        {bannerSettings.bannerUrl && (
+                            <div className="mt-3 rounded-lg overflow-hidden border">
+                                <img src={bannerSettings.bannerUrl} className="w-full h-32 object-cover"/>
+                            </div>
+                        )}
                      </div>
 
-                     <div>
-                       <label className="block text-sm font-bold text-gray-700 mb-1">ลิงก์รูปภาพ (Banner Image URL)</label>
-                       <input className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.bannerUrl} onChange={e => setBannerSettings({...bannerSettings, bannerUrl: e.target.value})} />
-                     </div>
-
-                     <button onClick={handleSaveBanner} className="bg-[#003781] hover:bg-[#002860] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all w-full justify-center md:w-auto">
-                       <Save size={18}/> บันทึกการตั้งค่า
-                     </button>
+                     <button onClick={handleSaveBanner} className="bg-[#003781] hover:bg-[#002860] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all w-full justify-center md:w-auto"><Save size={18}/> บันทึกการตั้งค่า</button>
                    </div>
                  </div>
                )}
