@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, Truck, Handshake, MessageCircle, Receipt, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Megaphone, Star, ChevronRight, Gift, CalendarCheck } from 'lucide-react';
+import { ShoppingBag, CheckCircle, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, Truck, Handshake, MessageCircle, Receipt, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Megaphone, Star, ChevronRight, Gift, CalendarCheck, Folder, Power } from 'lucide-react';
 import { db } from './firebase'; 
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc, where } from 'firebase/firestore';
 
 // --- รหัสผ่านเข้าหลังบ้าน ---
 const ADMIN_PASSWORD = "4242"; 
 
-// --- หมวดหมู่สินค้า ---
-const PRODUCT_CATEGORIES = ["ทั้งหมด", "Lifestyle", "Gadget", "Fashion", "Home", "Travel"];
+// --- หมวดหมู่เริ่มต้น (สำหรับสร้างครั้งแรก) ---
+const INITIAL_CATEGORIES = ["Lifestyle", "Gadget", "Fashion", "Home", "Travel"];
 
 // --- ข้อมูลสินค้าเริ่มต้น (Mockup) ---
 const INITIAL_PRODUCTS = [
@@ -20,13 +20,14 @@ export default function App() {
   // --- States ---
   const [view, setView] = useState('home'); // home, admin, login
   const [products, setProducts] = useState<any[]>([]); 
+  const [categories, setCategories] = useState<any[]>([]); // New: Dynamic Categories
   
   // Filtering Logic
   const [selectedCategory, setSelectedCategory] = useState("ทั้งหมด");
 
   // Banner Settings
   const [bannerSettings, setBannerSettings] = useState({
-    bannerUrl: "", // Start empty to prevent flashing
+    bannerUrl: "", 
     title: "ของขวัญพิเศษ แทนคำขอบคุณ",
     subtitle: "Privilege 2025",
     showAnnouncement: true,
@@ -52,10 +53,11 @@ export default function App() {
   const [filteredOrders, setFilteredOrders] = useState<any[]>([]); 
   const [searchTerm, setSearchTerm] = useState(''); 
   const [adminPassInput, setAdminPassInput] = useState(''); 
-  const [adminTab, setAdminTab] = useState('orders'); 
+  const [adminTab, setAdminTab] = useState('orders'); // orders, products, categories, settings
   const [editingProduct, setEditingProduct] = useState<any>(null); 
   const [editingOrder, setEditingOrder] = useState<any>(null);
   const [stats, setStats] = useState({ total: 0, pending: 0, completed: 0 });
+  const [newCategoryName, setNewCategoryName] = useState('');
 
   // Check Order (Customer)
   const [isCheckOrderOpen, setIsCheckOrderOpen] = useState(false);
@@ -105,7 +107,27 @@ export default function App() {
   const fetchContent = async () => {
     setLoading(true);
     try {
-      // Products
+      // 1. Fetch Categories (New Logic)
+      const cQuery = query(collection(db, "categories"), orderBy("timestamp", "asc"));
+      const cSnapshot = await getDocs(cQuery);
+      let cList = cSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      if (cList.length === 0) {
+          // ถ้ายังไม่มีหมวดหมู่ใน DB ให้สร้าง Default
+          for (const catName of INITIAL_CATEGORIES) {
+              await addDoc(collection(db, "categories"), { 
+                  name: catName, 
+                  active: true,
+                  timestamp: Timestamp.now()
+              });
+          }
+          // Fetch again
+          const newCSnapshot = await getDocs(query(collection(db, "categories"), orderBy("timestamp", "asc")));
+          cList = newCSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      }
+      setCategories(cList);
+
+      // 2. Fetch Products
       const pQuery = query(collection(db, "products"));
       const pSnapshot = await getDocs(pQuery); 
       let pList = pSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -118,13 +140,12 @@ export default function App() {
       }
       setProducts(pList);
 
-      // Settings
+      // 3. Fetch Settings
       const settingSnap = await getDoc(doc(db, "settings", "main"));
       if (settingSnap.exists()) {
         const data = settingSnap.data();
         setBannerSettings(prev => ({ ...prev, ...data })); 
       } else {
-        // If no settings in DB, use default box image
         const defaultBanner = "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=2000";
         setBannerSettings(prev => ({...prev, bannerUrl: defaultBanner}));
         await setDoc(doc(db, "settings", "main"), { ...bannerSettings, bannerUrl: defaultBanner });
@@ -137,7 +158,6 @@ export default function App() {
     setLoading(false); 
   };
 
-  // Helper function for resizing images
   const resizeImage = (file: File, callback: (dataUrl: string) => void) => {
     const reader = new FileReader();
     reader.onload = (event: any) => {
@@ -228,23 +248,16 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  // --- FIX 1 (Update V13.1): Search Order WITHOUT orderBy to avoid Index Error ---
+  // --- Search Order Logic ---
   const handleCheckOrderSearch = async (e: any) => {
       e.preventDefault();
       if (!checkOrderPhone.trim()) return;
-      
       setIsSearchingOrder(true);
       try {
-        // แก้ไข: ค้นหาแค่เบอร์อย่างเดียว (ไม่ใส่ orderBy) เพื่อเลี่ยงปัญหา Missing Index ของ Firebase
         const q = query(collection(db, "orders"), where("phone", "==", checkOrderPhone.trim()));
         const snapshot = await getDocs(q);
         const foundOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-        // เรียงลำดับเองใน Javascript แทน (ใหม่สุดขึ้นก่อน)
-        foundOrders.sort((a: any, b: any) => {
-            return (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0);
-        });
-
+        foundOrders.sort((a: any, b: any) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
         setMyOrders(foundOrders);
       } catch (error: any) {
         console.error("Search Error:", error);
@@ -291,14 +304,10 @@ export default function App() {
             });
 
             await updateDoc(productRef, { stock: currentStock - 1 });
-
             setFinalDeliveryMethod(deliveryMethod); 
             setLoading(false);
-            
-            // Switch Modals
             setIsOrderModalOpen(false); 
             setIsSuccessModalOpen(true); 
-
             fetchContent();
         }
     } catch (error: any) {
@@ -327,7 +336,6 @@ export default function App() {
   };
 
   const handleToggleStatus = async (order: any) => {
-    // Cycle statuses: pending -> confirmed_date -> completed -> pending
     let newStatus = 'pending';
     if (order.status === 'pending') newStatus = 'confirmed_date';
     else if (order.status === 'confirmed_date') newStatus = 'completed';
@@ -353,7 +361,7 @@ export default function App() {
           ...editingProduct,
           stock: parseInt(editingProduct.stock) || 0,
           code: editingProduct.code || '',
-          category: editingProduct.category || 'Lifestyle',
+          category: editingProduct.category || categories[0]?.name || 'Lifestyle',
           isNew: editingProduct.isNew || false,
           options: optionsArray
       };
@@ -408,6 +416,36 @@ export default function App() {
     alert("บันทึกการตั้งค่าหน้าเว็บเรียบร้อย");
   };
 
+  // --- Category Management Functions ---
+  const handleAddCategory = async (e: any) => {
+      e.preventDefault();
+      if (!newCategoryName.trim()) return;
+      try {
+          await addDoc(collection(db, "categories"), {
+              name: newCategoryName.trim(),
+              active: true,
+              timestamp: Timestamp.now()
+          });
+          setNewCategoryName('');
+          fetchContent(); // Refresh
+      } catch (err: any) { alert("Error adding category: " + err.message); }
+  };
+
+  const handleToggleCategory = async (cat: any) => {
+      try {
+          await updateDoc(doc(db, "categories", cat.id), { active: !cat.active });
+          fetchContent();
+      } catch (err: any) { alert("Error toggling: " + err.message); }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+      if (!confirm("ยืนยันลบหมวดหมู่นี้? (สินค้าในหมวดนี้จะยังอยู่ แต่ filter อาจจะไม่ตรง)")) return;
+      try {
+          await deleteDoc(doc(db, "categories", id));
+          fetchContent();
+      } catch (err: any) { alert("Error deleting: " + err.message); }
+  };
+
   const openEditProduct = (p: any) => {
       let optionsStr = '';
       if (p.options && Array.isArray(p.options)) {
@@ -429,7 +467,7 @@ export default function App() {
       <div className="container mx-auto px-4">
         <p className="text-gray-600 text-sm md:text-base">
           © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v13.1</span> 
+          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v14.0</span> 
         </p>
       </div>
     </footer>
@@ -525,7 +563,6 @@ export default function App() {
                                             {order.deliveryMethod}
                                         </p>
                                         
-                                        {/* Show Date for Confirmed Date Status */}
                                         {order.status === 'confirmed_date' && order.pickupDate && (
                                              <div className="mt-2 bg-emerald-50 p-2 border border-emerald-100 rounded text-emerald-800 text-sm font-bold flex items-center gap-2">
                                                 <CalendarCheck size={16}/> 
@@ -549,7 +586,7 @@ export default function App() {
     )
   }
 
-  // --- Modal: Success Popup (Revised) ---
+  // --- Modal: Success Popup ---
   const renderSuccessModal = () => {
       if (!isSuccessModalOpen) return null;
       return (
@@ -564,7 +601,6 @@ export default function App() {
                     </div>
                     <h2 className="text-2xl font-bold text-[#003781] mb-2">ขอบคุณที่ร่วมกิจกรรม</h2>
                     
-                    {/* FIX 4: ข้อความต่างกันตามประเภทการรับ */}
                     <p className="text-gray-500 text-sm mb-6">
                         ระบบได้รับข้อมูลเรียบร้อยแล้ว <br/>
                         สามารถตรวจสอบสถานะได้ที่ปุ่ม "ตรวจสอบสถานะ" <br/>
@@ -575,7 +611,6 @@ export default function App() {
                         )}
                     </p>
 
-                    {/* Summary Card - ALL INFO */}
                     <div className="w-full bg-gray-50 rounded-2xl p-5 border border-gray-200 mb-6 text-left relative overflow-hidden">
                          <div className="absolute top-0 right-0 p-2 opacity-5"><Receipt size={100}/></div>
                          <h3 className="font-bold text-gray-800 border-b border-gray-200 pb-2 mb-3 flex items-center gap-2 text-sm">
@@ -689,7 +724,6 @@ export default function App() {
                             <div className="space-y-2">
                                 <label className="text-sm font-bold text-gray-800">วิธีการรับของ <span className="text-red-500">*</span></label>
                                 <div className="flex gap-4">
-                                    {/* FIX 3: แก้ไข Label */}
                                     <label className={`flex-1 p-4 rounded-xl border-2 cursor-pointer flex flex-col items-center gap-2 transition ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500'}`}>
                                         <input type="radio" name="delivery" className="hidden" checked={deliveryMethod === 'delivery'} onChange={() => setDeliveryMethod('delivery')} />
                                         <Truck size={24}/> <span className="text-sm font-bold">จัดส่งถึงบ้าน</span>
@@ -714,7 +748,6 @@ export default function App() {
 
                             <div>
                                 <label className="text-sm font-bold text-gray-800 mb-1 block">{deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'สถานที่นัดรับ'} <span className="text-red-500">*</span></label>
-                                {/* FIX 3: แก้ไข Placeholder */}
                                 <textarea required rows={2} className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none resize-none" 
                                     placeholder={deliveryMethod === 'delivery' ? "บ้านเลขที่, ถนน, แขวง, เขต, จ.รหัสไปรษณีย์" : "ระบุสถานที่ เช่น BTS สยาม, เซ็นทรัลลาดพร้าว, บ้านลูกค้า/บ้านตัวแทน, ฯลฯ ใน กทม."} 
                                     value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
@@ -723,7 +756,6 @@ export default function App() {
                             {deliveryMethod === 'pickup' && (
                                 <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 animate-fade-in">
                                     <label className="text-sm font-bold text-orange-800 mb-1 block">วันเวลานัดรับ <span className="text-red-500">*</span></label>
-                                    {/* FIX 3: Add onClick showPicker */}
                                     <input required type="datetime-local" 
                                         className="w-full p-3 rounded-xl border bg-white focus:ring-2 focus:ring-[#003781] outline-none cursor-pointer" 
                                         value={formData.pickupDate} 
@@ -757,11 +789,10 @@ export default function App() {
       {renderOrderModal()}
       {renderSuccessModal()} 
 
-      {/* Navbar (FIXED TOP - FREEZE) */}
+      {/* Navbar (FIXED TOP) */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md border-b border-[#003781]/10 h-[70px] md:h-[80px]">
         <div className="w-full max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
           <div onClick={() => setView('home')} className="cursor-pointer flex items-center gap-3">
-             {/* Logo Icon */}
              <div className="bg-blue-50 p-2 rounded-xl border border-blue-100 hidden md:block">
                  <Gift className="text-[#003781]" size={32}/>
              </div>
@@ -769,7 +800,6 @@ export default function App() {
                  <Gift className="text-[#003781]" size={28}/>
              </div>
              
-             {/* Logo Text */}
              <div className="flex flex-col leading-none">
                 <span className="text-[#003781] font-extrabold text-xl md:text-2xl tracking-tight uppercase">Allianz</span>
                 <span className="text-gray-400 font-bold text-[10px] md:text-xs tracking-widest uppercase mt-0.5">Privilege Gift 2025</span>
@@ -793,14 +823,13 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main Content (Added padding-top for fixed header) */}
+      {/* Main Content */}
       <div className="flex-grow w-full py-6 mt-[70px] md:mt-[80px]">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-6">
         
         {/* VIEW: HOME */}
         {view === 'home' && (
            <div className="animate-fade-in w-full overflow-hidden">
-            {/* Announcement below fixed header */}
              {bannerSettings.showAnnouncement && bannerSettings.announcementText && (
                 <div className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-center py-2 px-4 text-xs md:text-sm font-bold relative rounded-lg shadow-sm mb-4 flex justify-center items-center gap-2">
                     <Megaphone size={16} className="animate-pulse hidden md:block"/>
@@ -808,7 +837,7 @@ export default function App() {
                 </div>
             )}
 
-            {/* Banner with Loading State */}
+            {/* Banner */}
             <div className="relative w-full aspect-[21/9] min-h-[220px] max-h-[400px] rounded-2xl overflow-hidden shadow-xl mb-6 group bg-gray-200">
                {!isBannerLoaded && (
                    <div className="absolute inset-0 flex items-center justify-center text-gray-400 animate-pulse">
@@ -836,20 +865,26 @@ export default function App() {
               </div>
             </div>
 
-            {/* Filter Categories */}
+            {/* Filter Categories (DYNAMIC) */}
             <div id="products-grid" className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2"><ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น</h2>
                 </div>
                 
                 <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                    {PRODUCT_CATEGORIES.map((cat) => (
+                    <button 
+                        onClick={() => setSelectedCategory("ทั้งหมด")}
+                        className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${selectedCategory === "ทั้งหมด" ? 'bg-[#003781] text-white border-[#003781] shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                    >
+                        ทั้งหมด
+                    </button>
+                    {categories.filter(c => c.active).map((cat) => (
                         <button 
-                            key={cat}
-                            onClick={() => setSelectedCategory(cat)}
-                            className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${selectedCategory === cat ? 'bg-[#003781] text-white border-[#003781] shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                            key={cat.id}
+                            onClick={() => setSelectedCategory(cat.name)}
+                            className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${selectedCategory === cat.name ? 'bg-[#003781] text-white border-[#003781] shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
                         >
-                            {cat}
+                            {cat.name}
                         </button>
                     ))}
                 </div>
@@ -953,6 +988,8 @@ export default function App() {
              <div className="flex gap-2 mb-6 border-b overflow-x-auto pb-1 no-scrollbar w-full">
                <button onClick={() => setAdminTab('orders')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'orders' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>📦 ออเดอร์ ({orders.length})</button> 
                <button onClick={() => setAdminTab('products')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'products' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🛍️ สินค้า</button>
+               {/* NEW TAB CATEGORIES */}
+               <button onClick={() => setAdminTab('categories')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'categories' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>📂 หมวดหมู่</button>
                <button onClick={() => setAdminTab('settings')} className={`px-4 py-2 rounded-t-lg font-bold whitespace-nowrap text-sm md:text-base ${adminTab === 'settings' ? 'bg-[#003781] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>🖼️ ตั้งค่าเว็บ</button>
              </div>
              
@@ -995,7 +1032,6 @@ export default function App() {
                                         </div>
                                         <div>
                                             <label className="text-xs text-gray-500 font-bold">สถานะ</label>
-                                            {/* FIX 5: เพิ่มตัวเลือก ยืนยันวันเวลา */}
                                             <select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.status} onChange={e => setEditingOrder({...editingOrder, status: e.target.value})}>
                                                 <option value="pending">รอดำเนินการ</option>
                                                 <option value="confirmed_date">ยืนยันวันเวลา</option>
@@ -1008,7 +1044,6 @@ export default function App() {
                                         <input className="w-full p-2 border rounded text-gray-900 bg-white placeholder-gray-400" placeholder="เช่น Kerry: KER123..." value={editingOrder.trackingNumber || ''} onChange={e => setEditingOrder({...editingOrder, trackingNumber: e.target.value})} />
                                     </div>
                                     <div><label className="text-xs text-gray-500 font-bold">ที่อยู่ / จุดนัดรับ</label><textarea required rows={3} className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.address} onChange={e => setEditingOrder({...editingOrder, address: e.target.value})} /></div>
-                                    {/* Show pickup date picker if needed */}
                                     <div>
                                         <label className="text-xs text-gray-500 font-bold text-orange-600">เวลานัดรับ</label>
                                         <input type="datetime-local" className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.pickupDate || ''} onChange={e => setEditingOrder({...editingOrder, pickupDate: e.target.value})} />
@@ -1099,10 +1134,10 @@ export default function App() {
                             <div>
                                 <label className="text-xs text-gray-500 font-bold">หมวดหมู่ (Category)</label>
                                 <div className="flex gap-2">
-                                    <select className="flex-1 p-2 border rounded text-gray-900 bg-white" value={editingProduct.category || 'Lifestyle'} onChange={e => setEditingProduct({...editingProduct, category: e.target.value})}>
-                                        {PRODUCT_CATEGORIES.filter(c => c !== "ทั้งหมด").map(c => <option key={c} value={c}>{c}</option>)}
+                                    {/* DYNAMIC CATEGORY DROPDOWN */}
+                                    <select className="flex-1 p-2 border rounded text-gray-900 bg-white" value={editingProduct.category || categories[0]?.name || ''} onChange={e => setEditingProduct({...editingProduct, category: e.target.value})}>
+                                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                                     </select>
-                                    <input className="flex-1 p-2 border rounded text-gray-900 bg-white" placeholder="หรือพิมพ์เอง..." value={editingProduct.category || ''} onChange={e => setEditingProduct({...editingProduct, category: e.target.value})} />
                                 </div>
                             </div>
                             <div><label className="text-xs text-gray-500 font-bold">ชื่อสินค้า</label><input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.name || ''} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} /></div>
@@ -1148,6 +1183,52 @@ export default function App() {
                       ))}
                     </div>
                  </div>
+               )}
+
+               {/* TAB: CATEGORIES (NEW) */}
+               {adminTab === 'categories' && (
+                   <div className="max-w-2xl">
+                       <h3 className="font-bold text-lg mb-4">จัดการหมวดหมู่สินค้า</h3>
+                       
+                       <form onSubmit={handleAddCategory} className="flex gap-2 mb-6 bg-gray-50 p-4 rounded-xl border">
+                           <input 
+                               className="flex-1 p-2 border rounded-lg text-gray-900 focus:ring-2 focus:ring-[#003781] outline-none" 
+                               placeholder="ชื่อหมวดหมู่ใหม่ (เช่น Seasonal, Clearance)"
+                               value={newCategoryName}
+                               onChange={e => setNewCategoryName(e.target.value)}
+                           />
+                           <button className="bg-[#003781] text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#002860]">
+                               <Plus size={18}/> เพิ่ม
+                           </button>
+                       </form>
+
+                       <div className="space-y-2">
+                           {categories.map((cat) => (
+                               <div key={cat.id} className="flex items-center justify-between p-3 border rounded-lg bg-white hover:bg-gray-50 transition">
+                                   <div className="flex items-center gap-3">
+                                       <Folder className="text-yellow-500" size={20}/>
+                                       <span className={`font-bold ${!cat.active ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{cat.name}</span>
+                                   </div>
+                                   <div className="flex gap-2">
+                                       <button 
+                                           onClick={() => handleToggleCategory(cat)}
+                                           className={`p-2 rounded-lg transition-colors ${cat.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`}
+                                           title={cat.active ? 'กำลังแสดง' : 'ถูกซ่อน'}
+                                       >
+                                           <Power size={18}/>
+                                       </button>
+                                       <button 
+                                           onClick={() => handleDeleteCategory(cat.id)}
+                                           className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                                           title="ลบหมวดหมู่"
+                                       >
+                                           <Trash2 size={18}/>
+                                       </button>
+                                   </div>
+                               </div>
+                           ))}
+                       </div>
+                   </div>
                )}
 
                {/* TAB: SETTINGS */}
