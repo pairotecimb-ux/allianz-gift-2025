@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, Truck, Handshake, MessageCircle, Receipt, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Megaphone, Star, ChevronRight, Gift, CalendarCheck, Folder, Power, Hash } from 'lucide-react';
+import { ShoppingBag, CheckCircle, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, Truck, Handshake, MessageCircle, Receipt, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Megaphone, Star, ChevronRight, Gift, CalendarCheck, Folder, Power, Calendar, ArrowRight } from 'lucide-react';
 import { db } from './firebase'; 
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc, where } from 'firebase/firestore';
 
@@ -18,18 +18,12 @@ const INITIAL_PRODUCTS = [
 
 export default function App() {
   // --- States ---
-  const [view, setView] = useState('home'); // home, admin, login
+  const [view, setView] = useState('home'); 
   const [products, setProducts] = useState<any[]>([]); 
   const [categories, setCategories] = useState<any[]>([]); 
-  
   const [selectedCategory, setSelectedCategory] = useState("ทั้งหมด");
-
   const [bannerSettings, setBannerSettings] = useState({
-    bannerUrl: "", 
-    title: "ของขวัญพิเศษ แทนคำขอบคุณ",
-    subtitle: "Privilege 2025",
-    showAnnouncement: true,
-    announcementText: "🎉 แลกรับได้ตั้งแต่วันนี้ - 15 มกราคม 2569 เท่านั้น!",
+    bannerUrl: "", title: "ของขวัญพิเศษ แทนคำขอบคุณ", subtitle: "Privilege 2025", showAnnouncement: true, announcementText: "🎉 แลกรับได้ตั้งแต่วันนี้ - 15 มกราคม 2569 เท่านั้น!",
   });
   const [isBannerLoaded, setIsBannerLoaded] = useState(false);
 
@@ -42,11 +36,7 @@ export default function App() {
   
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
-  
   const [formData, setFormData] = useState({ name: '', phone: '', address: '', pickupDate: '', remark: '' }); 
-  const [finalDeliveryMethod, setFinalDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
-  
-  // New State for keeping track of the just-created order for the receipt
   const [lastOrder, setLastOrder] = useState<any>(null);
 
   // Admin States
@@ -57,97 +47,72 @@ export default function App() {
   const [adminTab, setAdminTab] = useState('orders'); 
   const [editingProduct, setEditingProduct] = useState<any>(null); 
   const [editingOrder, setEditingOrder] = useState<any>(null);
-  const [stats, setStats] = useState({ total: 0, pending: 0, completed: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0 }); 
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  // Check Order (Customer)
+  // Check Order
   const [isCheckOrderOpen, setIsCheckOrderOpen] = useState(false);
   const [checkOrderPhone, setCheckOrderPhone] = useState('');
   const [myOrders, setMyOrders] = useState<any[] | null>(null);
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
 
-  // --- FIX Viewport ---
+  // --- Initial Setup ---
   useEffect(() => {
     const metaId = 'viewport-meta-tag-force';
     let meta = document.getElementById(metaId) as HTMLMetaElement;
-    if (!meta) {
-      meta = document.createElement('meta');
-      meta.id = metaId;
-      meta.name = 'viewport';
-      document.head.appendChild(meta);
-    }
+    if (!meta) { meta = document.createElement('meta'); meta.id = metaId; meta.name = 'viewport'; document.head.appendChild(meta); }
     meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
-  }, []);
-
-  // --- 1. โหลดข้อมูล ---
-  useEffect(() => {
     fetchContent();
   }, []); 
 
-  // --- Search Logic & Stats (Admin) - Updated to search Order No ---
+  // --- Admin Stats & Search ---
   useEffect(() => {
     const total = orders.length;
-    const pending = orders.filter(o => o.status !== 'completed' && o.status !== 'confirmed_date').length;
+    const pending = orders.filter(o => o.status === 'pending').length;
+    const confirmed = orders.filter(o => o.status === 'confirmed').length; 
     const completed = orders.filter(o => o.status === 'completed').length;
-    setStats({ total, pending, completed });
+    setStats({ total, pending, confirmed, completed });
 
-    if (searchTerm.trim() === '') {
-      setFilteredOrders(orders);
-    } else {
+    if (searchTerm.trim() === '') { setFilteredOrders(orders); } 
+    else {
       const lowerTerm = searchTerm.toLowerCase();
-      const filtered = orders.filter(o => 
-        o.orderNumber?.toLowerCase().includes(lowerTerm) || // Search by Order No
-        o.name?.toLowerCase().includes(lowerTerm) ||
-        o.phone?.includes(lowerTerm) ||
-        o.productCode?.toLowerCase().includes(lowerTerm) ||
-        o.productOption?.toLowerCase().includes(lowerTerm)
-      );
-      setFilteredOrders(filtered);
+      setFilteredOrders(orders.filter(o => 
+        o.orderNumber?.toLowerCase().includes(lowerTerm) || o.name?.toLowerCase().includes(lowerTerm) || o.phone?.includes(lowerTerm) || o.productCode?.toLowerCase().includes(lowerTerm)
+      ));
     }
   }, [searchTerm, orders]);
 
   const fetchContent = async () => {
     setLoading(true);
     try {
+      // 1. Categories
       const cQuery = query(collection(db, "categories"), orderBy("timestamp", "asc"));
       const cSnapshot = await getDocs(cQuery);
       let cList = cSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
       if (cList.length === 0) {
-          for (const catName of INITIAL_CATEGORIES) {
-              await addDoc(collection(db, "categories"), { name: catName, active: true, timestamp: Timestamp.now() });
-          }
+          for (const catName of INITIAL_CATEGORIES) { await addDoc(collection(db, "categories"), { name: catName, active: true, timestamp: Timestamp.now() }); }
           const newCSnapshot = await getDocs(query(collection(db, "categories"), orderBy("timestamp", "asc")));
           cList = newCSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       }
       setCategories(cList);
 
+      // 2. Products
       const pQuery = query(collection(db, "products"));
       const pSnapshot = await getDocs(pQuery); 
       let pList = pSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      if (pList.length === 0) {
-        for (const p of INITIAL_PRODUCTS) {
-          await setDoc(doc(db, "products", p.id), p);
-        }
-        pList = INITIAL_PRODUCTS; 
-      }
+      if (pList.length === 0) { for (const p of INITIAL_PRODUCTS) { await setDoc(doc(db, "products", p.id), p); } pList = INITIAL_PRODUCTS; }
       setProducts(pList);
 
+      // 3. Settings
       const settingSnap = await getDoc(doc(db, "settings", "main"));
-      if (settingSnap.exists()) {
-        const data = settingSnap.data();
-        setBannerSettings(prev => ({ ...prev, ...data })); 
-      } else {
+      if (settingSnap.exists()) { setBannerSettings(prev => ({ ...prev, ...settingSnap.data() })); } 
+      else {
         const defaultBanner = "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=2000";
         setBannerSettings(prev => ({...prev, bannerUrl: defaultBanner}));
         await setDoc(doc(db, "settings", "main"), { ...bannerSettings, bannerUrl: defaultBanner });
       }
       setIsBannerLoaded(true);
-
-    } catch (err) {
-      console.error("Error fetching:", err);
-    }
+    } catch (err) { console.error("Error fetching:", err); }
     setLoading(false); 
   };
 
@@ -157,388 +122,200 @@ export default function App() {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        const MAX_WIDTH = 800; 
-        const MAX_HEIGHT = 800;
-        if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7); 
-        callback(dataUrl);
+        let width = img.width, height = img.height;
+        const MAX = 800;
+        if (width > height) { if (width > MAX) { height *= MAX / width; width = MAX; } } else { if (height > MAX) { width *= MAX / height; height = MAX; } }
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d'); ctx?.drawImage(img, 0, 0, width, height);
+        callback(canvas.toDataURL('image/jpeg', 0.7));
       };
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   };
 
-  const handleProductImageUpload = (e: any) => {
-    const file = e.target.files[0];
-    if (file) { resizeImage(file, (dataUrl) => { setEditingProduct({ ...editingProduct, imageUrl: dataUrl }); }); }
-  };
-
-  const handleBannerImageUpload = (e: any) => {
-    const file = e.target.files[0];
-    if (file) { resizeImage(file, (dataUrl) => { setBannerSettings({ ...bannerSettings, bannerUrl: dataUrl }); }); }
-  };
+  const handleProductImageUpload = (e: any) => { const file = e.target.files[0]; if (file) resizeImage(file, (url) => setEditingProduct({ ...editingProduct, imageUrl: url })); };
+  const handleBannerImageUpload = (e: any) => { const file = e.target.files[0]; if (file) resizeImage(file, (url) => setBannerSettings({ ...bannerSettings, bannerUrl: url })); };
 
   const exportToCSV = () => {
-    if (orders.length === 0) {
-        alert("ไม่มีข้อมูลออเดอร์ให้ Export ครับ");
-        return;
-    }
-    const headers = ["Order No.", "วันที่", "สถานะ", "Tracking No.", "ประเภทการรับ", "ชื่อลูกค้า", "เบอร์โทร", "สินค้า", "ตัวเลือก (Option)", "รหัสสินค้า", "ที่อยู่ / จุดนัดรับ", "วันนัดรับ", "หมายเหตุ"];
+    if (orders.length === 0) { alert("ไม่มีข้อมูลออเดอร์ให้ Export ครับ"); return; }
+    const headers = ["Order No.", "วันที่", "สถานะ", "Tracking No.", "ประเภทการรับ", "ชื่อลูกค้า", "เบอร์โทร", "สินค้า", "ตัวเลือก", "ที่อยู่", "วันนัดรับ", "หมายเหตุ"];
     const csvContent = [
       headers.join(","), 
       ...orders.map(o => {
-        const orderNo = `"${o.orderNumber || '-'}"`;
-        const date = o.timestamp?.toDate().toLocaleDateString('th-TH') || '-';
         let statusText = 'รอตรวจสอบ';
-        if (o.status === 'completed') statusText = 'จัดส่งแล้ว';
-        if (o.status === 'confirmed_date') statusText = 'ยืนยันวันเวลาแล้ว';
-        
-        const tracking = `"${o.trackingNumber || '-'}"`; 
-        const type = o.deliveryMethod || '-';
-        const name = `"${o.name || ''}"`;
-        const phone = `"${o.phone || ''}"`;
-        const product = `"${o.product || ''}"`;
-        const option = `"${o.productOption || '-'}"`;
-        const code = `"${o.productCode || ''}"`;
-        const address = `"${(o.address || '').replace(/\n/g, ' ')}"`;
-        const pickupDate = o.pickupDate ? new Date(o.pickupDate).toLocaleString('th-TH') : '-';
-        const remark = `"${o.remark || ''}"`;
-        return [orderNo, date, statusText, tracking, type, name, phone, product, option, code, address, pickupDate, remark].join(",");
+        if (o.status === 'completed') statusText = 'เสร็จสิ้น';
+        if (o.status === 'confirmed') statusText = 'ยืนยัน/กำลังเตรียม';
+        return [`"${o.orderNumber||'-'}"`, o.timestamp?.toDate().toLocaleDateString('th-TH')||'-', statusText, `"${o.trackingNumber||'-'}"`, o.deliveryMethod||'-', `"${o.name||''}"`, `"${o.phone||''}"`, `"${o.product||''}"`, `"${o.productOption||'-'}"`, `"${(o.address||'').replace(/\n/g, ' ')}"`, o.pickupDate ? new Date(o.pickupDate).toLocaleString('th-TH') : '-', `"${o.remark||''}"`].join(",");
       })
     ].join("\n");
-
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `orders_export_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob(["\uFEFF"+csvContent], {type:'text/csv;charset=utf-8;'})); link.download = `orders_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
+  // --- Client Search Logic (Fixed V16) ---
   const handleCheckOrderSearch = async (e: any) => {
-      e.preventDefault();
-      if (!checkOrderPhone.trim()) return;
+      e.preventDefault(); if (!checkOrderPhone.trim()) return;
       setIsSearchingOrder(true);
       try {
         const q = query(collection(db, "orders"), where("phone", "==", checkOrderPhone.trim()));
         const snapshot = await getDocs(q);
         const foundOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Sort by timestamp desc locally
         foundOrders.sort((a: any, b: any) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
         setMyOrders(foundOrders);
-      } catch (error: any) {
-        alert("เกิดข้อผิดพลาดในการค้นหา: " + error.message);
-      }
+      } catch (error: any) { alert("เกิดข้อผิดพลาด: " + error.message); }
       setIsSearchingOrder(false);
   };
 
   const handleSubmitOrder = async (e: any) => {
     e.preventDefault();
-    if (selectedProduct.options && selectedProduct.options.length > 0 && !selectedOption) {
-        alert("กรุณาเลือกตัวเลือกสินค้า (เช่น สี หรือ ไซซ์) ก่อนครับ");
-        return;
-    }
-
+    if (selectedProduct.options?.length > 0 && !selectedOption) { alert("กรุณาเลือกตัวเลือกสินค้าก่อนครับ"); return; }
     setLoading(true); 
     try {
         const productRef = doc(db, "products", selectedProduct.id);
         const productSnap = await getDoc(productRef);
-        
-        if (productSnap.exists()) {
-            const currentStock = productSnap.data().stock || 0;
-            if (currentStock <= 0) {
-                alert("เสียใจด้วย สินค้าชิ้นนี้หมดพอดีครับ");
-                setLoading(false);
-                setIsOrderModalOpen(false); 
-                fetchContent();
-                return;
-            }
-
-            const finalPickupDate = deliveryMethod === 'delivery' ? '' : formData.pickupDate;
-            const finalDeliveryText = deliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ';
-            
+        if (productSnap.exists() && productSnap.data().stock > 0) {
+            const currentStock = productSnap.data().stock;
             const orderRef = `ORD-${Date.now().toString().substr(-6)}`; 
-
             const orderData = {
-                ...formData,
-                orderNumber: orderRef, 
-                pickupDate: finalPickupDate,
-                deliveryMethod: finalDeliveryText,
-                product: selectedProduct.name,
-                productId: selectedProduct.id,
-                productCode: selectedProduct.code || '-',
-                productOption: selectedOption || '-',
-                timestamp: Timestamp.now(),
-                status: 'pending'
+                ...formData, orderNumber: orderRef, 
+                pickupDate: deliveryMethod === 'delivery' ? '' : formData.pickupDate,
+                deliveryMethod: deliveryMethod === 'delivery' ? 'จัดส่งถึงบ้าน' : 'นัดรับ',
+                product: selectedProduct.name, productId: selectedProduct.id, productCode: selectedProduct.code || '-', productOption: selectedOption || '-',
+                timestamp: Timestamp.now(), status: 'pending'
             };
-
             await addDoc(collection(db, "orders"), orderData);
             await updateDoc(productRef, { stock: currentStock - 1 });
-
-            setLastOrder(orderData);
-            setFinalDeliveryMethod(deliveryMethod); 
-            
-            setLoading(false);
-            setIsOrderModalOpen(false); 
-            setIsSuccessModalOpen(true); 
-            fetchContent();
-        }
-    } catch (error: any) {
-      alert("เกิดข้อผิดพลาด: " + error.message);
-      setLoading(false);
-    }
+            setLastOrder(orderData); 
+            setLoading(false); setIsOrderModalOpen(false); setIsSuccessModalOpen(true); fetchContent();
+        } else { alert("สินค้าหมดพอดีครับ"); setLoading(false); setIsOrderModalOpen(false); fetchContent(); }
+    } catch (error: any) { alert("Error: " + error.message); setLoading(false); }
   };
 
-  const handleLogin = (e: any) => {
-    e.preventDefault();
-    if (adminPassInput === ADMIN_PASSWORD) { 
-      fetchOrders();
-      setView('admin');
-      setAdminPassInput('');
-    } else {
-      alert("รหัสผ่านไม่ถูกต้อง");
-    }
-  };
-
-  const fetchOrders = async () => {
-    const q = query(collection(db, "orders"), orderBy("timestamp", "desc"));
-    const querySnapshot = await getDocs(q); 
-    const orderList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setOrders(orderList);
-    setFilteredOrders(orderList); 
-  };
-
+  const handleLogin = (e: any) => { e.preventDefault(); if (adminPassInput === ADMIN_PASSWORD) { fetchOrders(); setView('admin'); setAdminPassInput(''); } else { alert("รหัสผ่านไม่ถูกต้อง"); } };
+  const fetchOrders = async () => { const q = query(collection(db, "orders"), orderBy("timestamp", "desc")); const s = await getDocs(q); setOrders(s.docs.map(d => ({ id: d.id, ...d.data() }))); };
+  
+  // Update Logic: Cycle pending -> confirmed -> completed
   const handleToggleStatus = async (order: any) => {
     let newStatus = 'pending';
-    if (order.status === 'pending') newStatus = 'confirmed_date';
-    else if (order.status === 'confirmed_date') newStatus = 'completed';
-    else newStatus = 'pending';
-
-    const updatedOrders = orders.map(o => o.id === order.id ? {...o, status: newStatus} : o);
-    setOrders(updatedOrders);
-    await updateDoc(doc(db, "orders", order.id), { status: newStatus });
+    if (order.status === 'pending') newStatus = 'confirmed';
+    else if (order.status === 'confirmed' || order.status === 'confirmed_date') newStatus = 'completed'; // Handle old status key too
+    const updated = orders.map(o => o.id === order.id ? {...o, status: newStatus} : o);
+    setOrders(updated); await updateDoc(doc(db, "orders", order.id), { status: newStatus });
   };
 
   const handleSaveProduct = async (e: any) => {
-    e.preventDefault();
-    if (!editingProduct) return;
+    e.preventDefault(); if (!editingProduct) return;
     try {
       let optionsArray: string[] = [];
-      if (editingProduct.optionsString) {
-          optionsArray = editingProduct.optionsString.split(',').map((s:string) => s.trim()).filter((s:string) => s !== '');
-      } else if (Array.isArray(editingProduct.options)) {
-          optionsArray = editingProduct.options;
-      }
-
-      const productData = {
-          ...editingProduct,
-          stock: parseInt(editingProduct.stock) || 0,
-          code: editingProduct.code || '',
-          category: editingProduct.category || categories[0]?.name || 'Lifestyle',
-          isNew: editingProduct.isNew || false,
-          options: optionsArray
-      };
+      if (editingProduct.optionsString) optionsArray = editingProduct.optionsString.split(',').map((s:string) => s.trim()).filter((s:string) => s !== '');
+      else if (Array.isArray(editingProduct.options)) optionsArray = editingProduct.options;
+      const productData = { ...editingProduct, stock: parseInt(editingProduct.stock)||0, code: editingProduct.code||'', category: editingProduct.category||categories[0]?.name||'Lifestyle', isNew: editingProduct.isNew||false, options: optionsArray };
       delete productData.optionsString;
-
-      const isNew = !editingProduct.id;
-      if (isNew) { 
-        await addDoc(collection(db, "products"), { ...productData, active: true });
-      } else {
-        const { id, ...data } = productData;
-        await updateDoc(doc(db, "products", id), data); 
-      }
-      setEditingProduct(null);
-      fetchContent();
+      if (!editingProduct.id) await addDoc(collection(db, "products"), { ...productData, active: true });
+      else { const { id, ...data } = productData; await updateDoc(doc(db, "products", id), data); }
+      setEditingProduct(null); fetchContent();
     } catch (err: any) { alert("Error: " + err.message); } 
   };
 
-  const handleDeleteProduct = async (id: string) => {
-    if(!confirm("ยืนยันการลบสินค้า?")) return;
-    await deleteDoc(doc(db, "products", id)); 
-    fetchContent();
+  const handleDeleteProduct = async (id: string) => { if(confirm("ยืนยันการลบ?")) { await deleteDoc(doc(db, "products", id)); fetchContent(); } };
+  const handleToggleProduct = async (p: any) => { await updateDoc(doc(db, "products", p.id), { active: !p.active }); fetchContent(); };
+  const handleDeleteOrder = async (id: string) => { if(confirm("ยืนยันลบออเดอร์?")) { await deleteDoc(doc(db, "orders", id)); fetchOrders(); } };
+  const handleSaveOrder = async (e: any) => { e.preventDefault(); if (!editingOrder) return; const { id, ...data } = editingOrder; if (data.deliveryMethod === 'จัดส่งถึงบ้าน') data.pickupDate = ''; await updateDoc(doc(db, "orders", id), data); setEditingOrder(null); fetchOrders(); alert("บันทึกเรียบร้อย"); };
+  const handleSaveBanner = async () => { await setDoc(doc(db, "settings", "main"), bannerSettings); alert("บันทึกการตั้งค่าเรียบร้อย"); };
+  const handleAddCategory = async (e: any) => { e.preventDefault(); if(newCategoryName.trim()) { await addDoc(collection(db, "categories"), { name: newCategoryName.trim(), active: true, timestamp: Timestamp.now() }); setNewCategoryName(''); fetchContent(); } };
+  const handleToggleCategory = async (cat: any) => { await updateDoc(doc(db, "categories", cat.id), { active: !cat.active }); fetchContent(); };
+  const handleDeleteCategory = async (id: string) => { if(confirm("ยืนยันลบหมวดหมู่?")) { await deleteDoc(doc(db, "categories", id)); fetchContent(); } };
+  
+  const openEditProduct = (p: any) => { setEditingProduct({ ...p, optionsString: p.options?.join(', ') || '' }); };
+  const getFilteredProducts = () => { return selectedCategory === "ทั้งหมด" ? products : products.filter(p => p.category === selectedCategory); };
+
+  const Footer = () => ( <footer className="w-full bg-white border-t border-gray-200 py-6 text-center mt-auto"><div className="container mx-auto px-4"><p className="text-gray-600 text-sm md:text-base">© 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/><span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v16.0</span></p></div></footer> ); 
+  const ImageModal = () => { if (!viewingImage) return null; return ( <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 animate-fade-in" onClick={() => setViewingImage(null)}><button className="absolute top-4 right-4 text-white bg-white/20 rounded-full p-2 hover:bg-white/40"><X size={24} /></button><img src={viewingImage} className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()}/></div> ); };
+
+  // --- COMPONENT: Timeline (Visual Tracker) - FIX V16 Logic ---
+  const OrderTimeline = ({ status, method }: { status: string, method: string }) => {
+    // Logic: 1=Pending, 2=Confirmed (Processing), 3=Completed
+    let step = 1;
+    if (status === 'confirmed' || status === 'confirmed_date') step = 2; // Support both old & new key
+    if (status === 'completed') step = 3;
+
+    // Text Logic based on Method
+    const step2Text = method.includes('นัดรับ') ? 'ยืนยันวันนัด' : 'กำลังเตรียมของ';
+    const step3Text = method.includes('นัดรับ') ? 'รับของแล้ว' : 'จัดส่งสำเร็จ';
+
+    return (
+        <div className="w-full py-4 px-2">
+            <div className="relative flex items-center justify-between w-full mb-2">
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-200 -z-10"></div>
+                {/* Step 1 */}
+                <div className={`flex flex-col items-center gap-1 bg-white px-2`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${step >= 1 ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300 text-gray-300'}`}><Package size={14} /></div>
+                    <span className={`text-[10px] font-bold ${step >= 1 ? 'text-green-600' : 'text-gray-400'}`}>รับเรื่อง</span>
+                </div>
+                 {/* Line 1-2 */}
+                 <div className={`absolute left-[15%] right-[50%] h-1 top-1/2 -translate-y-1/2 transition-all duration-500 ${step >= 2 ? 'bg-green-500' : 'bg-gray-200'} -z-0`}></div>
+                {/* Step 2 */}
+                <div className={`flex flex-col items-center gap-1 bg-white px-2`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${step >= 2 ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300 text-gray-300'}`}><CheckSquare size={14} /></div>
+                    <span className={`text-[10px] font-bold ${step >= 2 ? 'text-green-600' : 'text-gray-400'}`}>{step2Text}</span>
+                </div>
+                {/* Line 2-3 */}
+                <div className={`absolute left-[50%] right-[15%] h-1 top-1/2 -translate-y-1/2 transition-all duration-500 ${step >= 3 ? 'bg-green-500' : 'bg-gray-200'} -z-0`}></div>
+                {/* Step 3 */}
+                <div className={`flex flex-col items-center gap-1 bg-white px-2`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${step >= 3 ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300 text-gray-300'}`}><Truck size={14} /></div>
+                    <span className={`text-[10px] font-bold ${step >= 3 ? 'text-green-600' : 'text-gray-400'}`}>{step3Text}</span>
+                </div>
+            </div>
+        </div>
+    );
   };
 
-  const handleToggleProduct = async (product: any) => {
-    await updateDoc(doc(db, "products", product.id), { active: !product.active });
-    fetchContent();
-  };
-
-  const handleDeleteOrder = async (id: string) => {
-    if(!confirm("ยืนยันการลบออเดอร์นี้? (กู้คืนไม่ได้)")) return;
-    await deleteDoc(doc(db, "orders", id)); 
-    fetchOrders();
-  };
-
-  const handleSaveOrder = async (e: any) => {
-    e.preventDefault();
-    if (!editingOrder) return;
-    try {
-      const { id, ...data } = editingOrder;
-      if (data.deliveryMethod === 'จัดส่งถึงบ้าน') {
-          data.pickupDate = '';
-      }
-      await updateDoc(doc(db, "orders", id), data); 
-      setEditingOrder(null);
-      fetchOrders();
-      alert("บันทึกข้อมูลเรียบร้อย");
-    } catch (err: any) { alert("บันทึกออเดอร์ไม่สำเร็จ: " + err.message); }
-  };
-
-  const handleSaveBanner = async () => {
-    await setDoc(doc(db, "settings", "main"), bannerSettings); 
-    alert("บันทึกการตั้งค่าหน้าเว็บเรียบร้อย");
-  };
-
-  const handleAddCategory = async (e: any) => {
-      e.preventDefault();
-      if (!newCategoryName.trim()) return;
-      try {
-          await addDoc(collection(db, "categories"), { name: newCategoryName.trim(), active: true, timestamp: Timestamp.now() });
-          setNewCategoryName('');
-          fetchContent();
-      } catch (err: any) { alert("Error adding category: " + err.message); }
-  };
-
-  const handleToggleCategory = async (cat: any) => {
-      try { await updateDoc(doc(db, "categories", cat.id), { active: !cat.active }); fetchContent(); } catch (err: any) { alert("Error: " + err.message); }
-  };
-
-  const handleDeleteCategory = async (id: string) => {
-      if (!confirm("ยืนยันลบหมวดหมู่นี้?")) return;
-      try { await deleteDoc(doc(db, "categories", id)); fetchContent(); } catch (err: any) { alert("Error: " + err.message); }
-  };
-
-  const openEditProduct = (p: any) => {
-      let optionsStr = '';
-      if (p.options && Array.isArray(p.options)) { optionsStr = p.options.join(', '); }
-      setEditingProduct({ ...p, optionsString: optionsStr });
-  };
-
-  const getFilteredProducts = () => {
-      if (selectedCategory === "ทั้งหมด") { return products; }
-      return products.filter(p => p.category === selectedCategory);
-  };
-
-  const Footer = () => (
-    <footer className="w-full bg-white border-t border-gray-200 py-6 text-center mt-auto">
-      <div className="container mx-auto px-4">
-        <p className="text-gray-600 text-sm md:text-base">
-          © 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/>
-          <span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v15.1</span> 
-        </p>
-      </div>
-    </footer>
-  ); 
-
-  const ImageModal = () => {
-      if (!viewingImage) return null;
-      return (
-          <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 animate-fade-in" onClick={() => setViewingImage(null)}>
-              <button className="absolute top-4 right-4 text-white bg-white/20 rounded-full p-2 hover:bg-white/40">
-                  <X size={24} />
-              </button>
-              <img src={viewingImage} className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()}/>
-          </div>
-      );
-  };
-
-  // --- Modal: Check Order ---
   const renderCheckOrderModal = () => {
     if (!isCheckOrderOpen) return null;
     return (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-slide-up">
                 <div className="bg-[#003781] p-4 flex justify-between items-center">
-                    <h3 className="text-white font-bold text-lg flex items-center gap-2">
-                        <Package size={20}/> ติดตามสถานะพัสดุ
-                    </h3>
-                    <button onClick={() => {setIsCheckOrderOpen(false); setMyOrders(null); setCheckOrderPhone('')}} className="text-white/80 hover:text-white">
-                        <X size={24} />
-                    </button>
+                    <h3 className="text-white font-bold text-lg flex items-center gap-2"><Package size={20}/> ติดตามสถานะพัสดุ</h3>
+                    <button onClick={() => {setIsCheckOrderOpen(false); setMyOrders(null); setCheckOrderPhone('')}} className="text-white/80 hover:text-white"><X size={24} /></button>
                 </div>
                 <div className="p-6">
                     <form onSubmit={handleCheckOrderSearch} className="flex gap-2 mb-6">
-                        <input 
-                            type="tel" 
-                            className="flex-1 border rounded-xl p-3 text-gray-800 outline-none focus:ring-2 focus:ring-[#003781]"
-                            placeholder="กรอกเบอร์โทรศัพท์ของคุณ..."
-                            value={checkOrderPhone}
-                            onChange={e => setCheckOrderPhone(e.target.value)}
-                            autoFocus
-                        />
-                        <button type="submit" disabled={isSearchingOrder} className="bg-[#003781] text-white px-6 rounded-xl font-bold hover:bg-[#002860] disabled:bg-gray-400">
-                            {isSearchingOrder ? '...' : 'ค้นหา'}
-                        </button>
+                        <input type="tel" className="flex-1 border rounded-xl p-3 text-gray-800 outline-none focus:ring-2 focus:ring-[#003781]" placeholder="กรอกเบอร์โทรศัพท์ของคุณ..." value={checkOrderPhone} onChange={e => setCheckOrderPhone(e.target.value)} autoFocus />
+                        <button type="submit" disabled={isSearchingOrder} className="bg-[#003781] text-white px-6 rounded-xl font-bold hover:bg-[#002860] disabled:bg-gray-400">{isSearchingOrder ? '...' : 'ค้นหา'}</button>
                     </form>
-
-                    <div className="space-y-4 max-h-[50vh] overflow-y-auto">
-                        {myOrders === null ? (
-                            <div className="text-center py-8 text-gray-400">
-                                <Search size={48} className="mx-auto mb-2 opacity-20"/>
-                                <p>กรอกเบอร์โทรเพื่อค้นหาออเดอร์</p>
-                            </div>
-                        ) : myOrders.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
-                                ไม่พบข้อมูลออเดอร์ของเบอร์นี้
-                            </div>
-                        ) : (
-                            myOrders.map(order => {
-                                let statusBadge;
-                                if (order.status === 'completed') {
-                                    statusBadge = (
-                                        <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1"><CheckCircle size={12}/> จัดส่งแล้ว</span>
-                                    );
-                                } else if (order.status === 'confirmed_date') {
-                                    statusBadge = (
-                                        <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1"><CalendarCheck size={12}/> ยืนยันวันเวลานัดรับแล้ว</span>
-                                    );
-                                } else {
-                                    statusBadge = (
-                                        <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full font-bold flex items-center gap-1"><Clock size={12}/> รอดำเนินการ</span>
-                                    );
-                                }
-
-                                return (
+                    <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+                        {myOrders === null ? ( <div className="text-center py-8 text-gray-400"><Search size={48} className="mx-auto mb-2 opacity-20"/><p>กรอกเบอร์โทรเพื่อค้นหาออเดอร์</p></div> ) 
+                        : myOrders.length === 0 ? ( <div className="text-center py-8 text-gray-500">ไม่พบข้อมูลออเดอร์ของเบอร์นี้</div> ) 
+                        : ( myOrders.map(order => (
                                 <div key={order.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50 hover:bg-white hover:shadow-md transition-all">
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded font-mono">{order.orderNumber || '-'}</span>
-                                            </div>
+                                            <div className="flex items-center gap-2 mb-1"><span className="bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded font-mono">{order.orderNumber || '-'}</span></div>
                                             <p className="font-bold text-[#003781]">{order.product}</p>
                                             {order.productOption && order.productOption !== '-' && <span className="text-xs text-gray-500">({order.productOption})</span>}
-                                            <p className="text-xs text-gray-400 mt-1">วันที่แลก: {order.timestamp?.toDate().toLocaleDateString('th-TH')}</p>
                                         </div>
-                                        {statusBadge}
+                                    </div>
+                                    {/* Tracking Timeline */}
+                                    <div className="bg-white p-2 rounded-lg border border-gray-100 my-3 shadow-inner">
+                                        <OrderTimeline status={order.status} method={order.deliveryMethod} />
                                     </div>
                                     <div className="text-sm text-gray-600 border-t border-gray-200 pt-2 mt-2">
-                                        <p className="flex items-center gap-2">
+                                        <p className="flex items-center gap-2 mb-1">
                                             {order.deliveryMethod === 'จัดส่งถึงบ้าน' ? <Truck size={14}/> : <MapPin size={14}/>}
-                                            {order.deliveryMethod}
+                                            <span className="font-bold">{order.deliveryMethod}</span>
                                         </p>
-                                        
-                                        {order.status === 'confirmed_date' && order.pickupDate && (
-                                             <div className="mt-2 bg-emerald-50 p-2 border border-emerald-100 rounded text-emerald-800 text-sm font-bold flex items-center gap-2">
-                                                <CalendarCheck size={16}/> 
-                                                <span>เวลานัด: {new Date(order.pickupDate).toLocaleString('th-TH')}</span>
+                                        {(order.status === 'confirmed' || order.status === 'confirmed_date') && order.pickupDate && (
+                                             <div className="mt-2 bg-emerald-50 p-2 border border-emerald-100 rounded text-emerald-800 text-sm font-bold flex items-center gap-2 animate-pulse">
+                                                <CalendarCheck size={16}/> <span>นัดรับ: {new Date(order.pickupDate).toLocaleString('th-TH')}</span>
                                             </div>
                                         )}
-
-                                        {order.trackingNumber && (
-                                            <div className="mt-2 bg-blue-50 p-2 border border-blue-100 rounded text-blue-800 text-sm font-mono flex items-center gap-2">
-                                                📦 <b>Track:</b> {order.trackingNumber}
-                                            </div>
-                                        )}
+                                        {order.trackingNumber && (<div className="mt-2 bg-blue-50 p-2 border border-blue-100 rounded text-blue-800 text-sm font-mono flex items-center gap-2">📦 <b>Track:</b> {order.trackingNumber}</div>)}
                                     </div>
                                 </div>
-                            )})
+                            ))
                         )}
                     </div>
                 </div>
@@ -547,51 +324,28 @@ export default function App() {
     )
   }
 
-  // --- Modal: Success Popup (Final Receipt Style with Text Update) ---
+  // --- Modal: Success Popup (Final V16.0: Restore Text + Force Line) ---
   const renderSuccessModal = () => {
       if (!isSuccessModalOpen || !lastOrder) return null;
-
       const orderRef = lastOrder.orderNumber;
       const currentDate = lastOrder.timestamp?.toDate().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
-
-      // Create Message for Line OA
-      const message = `
-🧾 ใบยืนยันรายการ (Order Confirmation)
-#️⃣ Order No: ${orderRef}
-📅 วันที่: ${currentDate}
---------------------------
-📦 สินค้า: ${lastOrder.product}
-🎨 ตัวเลือก: ${lastOrder.productOption}
-👤 ผู้ทำรายการ: ${lastOrder.name}
-📞 เบอร์ติดต่อ: ${lastOrder.phone}
-🚚 การจัดส่ง: ${lastOrder.deliveryMethod}
-${lastOrder.deliveryMethod === 'จัดส่งถึงบ้าน' 
-    ? `📍 ที่อยู่จัดส่ง: ${lastOrder.address}` 
-    : `📍 จุดนัดรับ: ${lastOrder.address}`}
-${lastOrder.deliveryMethod === 'นัดรับ' && lastOrder.pickupDate ? `📅 เวลานัดรับ: ${new Date(lastOrder.pickupDate).toLocaleString('th-TH')}` : ''}
-${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
---------------------------
-รบกวนตรวจสอบข้อมูลครับ/ค่ะ 🙏
-`.trim();
-
+      const message = `🧾 ใบยืนยันรายการ (Order Confirmation)\n#️⃣ Order No: ${orderRef}\n📅 วันที่: ${currentDate}\n--------------------------\n📦 สินค้า: ${lastOrder.product}\n🎨 ตัวเลือก: ${lastOrder.productOption}\n👤 ผู้ทำรายการ: ${lastOrder.name}\n📞 เบอร์ติดต่อ: ${lastOrder.phone}\n🚚 การจัดส่ง: ${lastOrder.deliveryMethod}\n${lastOrder.deliveryMethod === 'จัดส่งถึงบ้าน' ? `📍 ที่อยู่จัดส่ง: ${lastOrder.address}` : `📍 จุดนัดรับ: ${lastOrder.address}`}\n${lastOrder.deliveryMethod === 'นัดรับ' && lastOrder.pickupDate ? `📅 เวลานัดรับ: ${new Date(lastOrder.pickupDate).toLocaleString('th-TH')}` : ''}\n${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}\n--------------------------\nรบกวนตรวจสอบข้อมูลครับ/ค่ะ 🙏`;
       const lineOALink = `https://line.me/R/oaMessage/@386cqgdi/?${encodeURIComponent(message)}`;
 
       return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => {setIsSuccessModalOpen(false); setView('home'); window.location.reload();}}></div>
-             
+             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div> {/* Removed onClick to close */}
              <div className="bg-white w-full max-w-md rounded-xl shadow-2xl relative animate-slide-up overflow-hidden max-h-[95vh] overflow-y-auto">
                 <div className="bg-[#003781] h-2 w-full"></div>
                 <div className="p-6 flex flex-col items-center text-center">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 shadow-sm">
-                        <CheckCircle className="text-green-600 w-8 h-8" />
-                    </div>
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 shadow-sm"><CheckCircle className="text-green-600 w-8 h-8" /></div>
                     <h2 className="text-xl font-bold text-[#003781] mb-2">บันทึกข้อมูลสำเร็จ</h2>
-                    
+                    {/* Logic Text */}
                     <div className="text-sm text-gray-500 mb-6 space-y-1">
-                        {finalDeliveryMethod === 'pickup' ? (
+                        {lastOrder.deliveryMethod === 'นัดรับ' ? (
                             <>
-                                <p>ขอบคุณที่ร่วมกิจกรรม ระบบได้รับข้อมูลเรียบร้อยแล้ว</p>
+                                <p>ขอบคุณที่ร่วมกิจกรรม</p>
+                                <p>ระบบได้รับข้อมูลเรียบร้อยแล้ว</p>
                                 <p>สามารถตรวจสอบสถานะได้ที่ปุ่ม "ตรวจสอบสถานะ"</p>
                                 <p className="text-amber-500 font-bold mt-2 animate-pulse">👇 กรุณากดปุ่ม "ส่งสรุปรายการเข้า Line OA" ด้านล่าง</p>
                             </>
@@ -604,82 +358,28 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
                             </>
                         )}
                     </div>
-
+                    {/* Receipt Card */}
                     <div className="w-full bg-white border border-gray-200 rounded-lg shadow-sm mb-6 overflow-hidden text-left relative">
                          <div className="bg-gray-50 p-4 border-b border-gray-200 border-dashed flex justify-between items-start">
-                            <div>
-                                <div className="text-xs font-bold text-gray-400 uppercase tracking-wide">Order Receipt</div>
-                                <div className="text-[#003781] font-black text-lg tracking-tight">ALLIANZ GIFT</div>
-                                <div className="text-[10px] text-gray-500 font-medium">สำหรับลูกค้าประกัน นัท อลิอันซ์ เท่านั้น</div>
-                            </div>
-                            <div className="text-right">
-                                <div className="text-xs text-gray-500">REF NO.</div>
-                                <div className="text-sm font-bold text-gray-800 font-mono">{orderRef}</div>
-                            </div>
+                            <div><div className="text-xs font-bold text-gray-400 uppercase tracking-wide">Order Receipt</div><div className="text-[#003781] font-black text-lg tracking-tight">ALLIANZ GIFT</div><div className="text-[10px] text-gray-500 font-medium">สำหรับลูกค้าประกัน นัท อลิอันซ์ เท่านั้น</div></div>
+                            <div className="text-right"><div className="text-xs text-gray-500">REF NO.</div><div className="text-sm font-bold text-gray-800 font-mono">{orderRef}</div></div>
                          </div>
-
                          <div className="p-4 space-y-4 text-sm relative">
-                            <div className="absolute -left-1.5 top-[-6px] w-3 h-3 rounded-full bg-white border border-gray-300"></div>
-                            <div className="absolute -right-1.5 top-[-6px] w-3 h-3 rounded-full bg-white border border-gray-300"></div>
-
-                            <div className="flex gap-3 items-start pb-4 border-b border-gray-100 border-dashed">
-                                <div className="bg-blue-50 p-2 rounded-md">
-                                    <Gift size={20} className="text-[#003781]"/>
-                                </div>
-                                <div>
-                                    <div className="font-bold text-gray-800">{lastOrder.product}</div>
-                                    <div className="text-gray-500 text-xs">ตัวเลือก: {lastOrder.productOption}</div>
-                                </div>
-                            </div>
-
+                            <div className="absolute -left-1.5 top-[-6px] w-3 h-3 rounded-full bg-white border border-gray-300"></div><div className="absolute -right-1.5 top-[-6px] w-3 h-3 rounded-full bg-white border border-gray-300"></div>
+                            <div className="flex gap-3 items-start pb-4 border-b border-gray-100 border-dashed"><div className="bg-blue-50 p-2 rounded-md"><Gift size={20} className="text-[#003781]"/></div><div><div className="font-bold text-gray-800">{lastOrder.product}</div><div className="text-gray-500 text-xs">ตัวเลือก: {lastOrder.productOption}</div></div></div>
                             <div className="space-y-2">
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-xs">ชื่อผู้ติดต่อ</span>
-                                    <span className="font-medium text-gray-800 text-right">{lastOrder.name}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-gray-500 text-xs">เบอร์โทรศัพท์</span>
-                                    <span className="font-medium text-gray-800 text-right">{lastOrder.phone}</span>
-                                </div>
+                                <div className="flex justify-between"><span className="text-gray-500 text-xs">ชื่อผู้ติดต่อ</span><span className="font-medium text-gray-800 text-right">{lastOrder.name}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500 text-xs">เบอร์โทรศัพท์</span><span className="font-medium text-gray-800 text-right">{lastOrder.phone}</span></div>
                                 <div className="my-2 border-t border-gray-100 border-dashed"></div>
-                                <div className="flex justify-between items-start">
-                                    <span className="text-gray-500 text-xs whitespace-nowrap">
-                                        {lastOrder.deliveryMethod === 'จัดส่งถึงบ้าน' ? 'จัดส่งที่' : 'จุดนัดรับ'}
-                                    </span>
-                                    <span className="font-medium text-gray-800 text-right text-xs max-w-[60%] leading-snug">
-                                        {lastOrder.address}
-                                    </span>
-                                </div>
-                                {lastOrder.deliveryMethod === 'นัดรับ' && lastOrder.pickupDate && (
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-500 text-xs">เวลานัดรับ</span>
-                                        <span className="font-bold text-orange-600 text-right text-xs">
-                                            {new Date(lastOrder.pickupDate).toLocaleString('th-TH')}
-                                        </span>
-                                    </div>
-                                )}
-                                {lastOrder.remark && (
-                                    <div className="bg-yellow-50 p-2 rounded text-xs text-gray-600 mt-2">
-                                        <span className="font-bold text-yellow-700">Note:</span> {lastOrder.remark}
-                                    </div>
-                                )}
+                                <div className="flex justify-between items-start"><span className="text-gray-500 text-xs whitespace-nowrap">{lastOrder.deliveryMethod === 'จัดส่งถึงบ้าน' ? 'จัดส่งที่' : 'จุดนัดรับ'}</span><span className="font-medium text-gray-800 text-right text-xs max-w-[60%] leading-snug">{lastOrder.address}</span></div>
+                                {lastOrder.deliveryMethod === 'นัดรับ' && lastOrder.pickupDate && (<div className="flex justify-between"><span className="text-gray-500 text-xs">เวลานัดรับ</span><span className="font-bold text-orange-600 text-right text-xs">{new Date(lastOrder.pickupDate).toLocaleString('th-TH')}</span></div>)}
+                                {lastOrder.remark && (<div className="bg-yellow-50 p-2 rounded text-xs text-gray-600 mt-2"><span className="font-bold text-yellow-700">Note:</span> {lastOrder.remark}</div>)}
                             </div>
                          </div>
-                         
-                         <div className="bg-gray-50 p-3 border-t border-gray-200 border-dashed flex justify-between items-center text-xs text-gray-500">
-                             <span>{currentDate}</span>
-                             <span className="font-bold text-[#003781]">COMPLETED</span>
-                         </div>
+                         <div className="bg-gray-50 p-3 border-t border-gray-200 border-dashed flex justify-between items-center text-xs text-gray-500"><span>{currentDate}</span><span className="font-bold text-[#003781]">COMPLETED</span></div>
                     </div>
-
-                    <div className="w-full space-y-3">
-                        <a href={lineOALink} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-green-500/30 active:scale-95 text-sm animate-pulse">
-                            <MessageCircle size={20} fill="white" /> ส่งสรุปรายการเข้า Line OA
-                        </a>
-                        <button onClick={() => {setIsSuccessModalOpen(false); setView('home'); window.location.reload();}} className="w-full bg-white border border-gray-300 text-gray-600 hover:text-[#003781] hover:bg-gray-50 px-6 py-3 rounded-xl font-bold transition-all text-sm">
-                            ปิดหน้าต่าง
-                        </button>
-                    </div>
+                    {/* Buttons: Close removed to force Line OA */}
+                    <div className="w-full space-y-3"><a href={lineOALink} target="_blank" rel="noreferrer" onClick={() => {setTimeout(() => {setIsSuccessModalOpen(false); setView('home'); window.location.reload();}, 1000)}} className="flex items-center justify-center gap-2 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-green-500/30 active:scale-95 text-sm animate-pulse transform hover:scale-105"><MessageCircle size={24} fill="white" /> ส่งสรุปรายการเข้า Line OA</a></div>
                 </div>
              </div>
         </div>
@@ -691,96 +391,51 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
     return (
         <div className="fixed inset-0 z-[55] flex items-center justify-center p-0 md:p-4">
              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsOrderModalOpen(false)}></div>
-             
              <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-4xl md:rounded-2xl shadow-2xl overflow-y-auto relative animate-slide-up flex flex-col">
                 <div className="sticky top-0 bg-white z-10 border-b p-4 flex justify-between items-center shadow-sm">
-                    <h3 className="font-bold text-lg md:text-xl text-[#003781] flex items-center gap-2">
-                        <ShoppingBag size={20}/> รายละเอียดการแลกของขวัญ
-                    </h3>
-                    <button onClick={() => setIsOrderModalOpen(false)} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200">
-                        <X size={24} className="text-gray-600"/>
-                    </button>
+                    <h3 className="font-bold text-lg md:text-xl text-[#003781] flex items-center gap-2"><ShoppingBag size={20}/> รายละเอียดการแลกของขวัญ</h3>
+                    <button onClick={() => setIsOrderModalOpen(false)} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200"><X size={24} className="text-gray-600"/></button>
                 </div>
-                
                 <div className="p-4 md:p-8 flex flex-col md:flex-row gap-6 md:gap-8">
                     <div className="w-full md:w-1/3 flex flex-col items-center text-center">
                          <div className="relative w-full aspect-square rounded-xl overflow-hidden border border-gray-200 mb-4 group cursor-zoom-in" onClick={() => setViewingImage(selectedProduct.imageUrl)}>
                             <img src={selectedProduct.imageUrl} className="w-full h-full object-cover"/>
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-all">
-                                <ZoomIn className="text-white opacity-0 group-hover:opacity-100 drop-shadow-md"/>
-                            </div>
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-all"><ZoomIn className="text-white opacity-0 group-hover:opacity-100 drop-shadow-md"/></div>
                          </div>
                          <h2 className="text-xl font-bold text-gray-900 mb-2">{selectedProduct.name}</h2>
                          <p className="text-sm text-gray-500 mb-4">{selectedProduct.description}</p>
-                         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 mb-4">
-                            <Star size={16} fill="currentColor"/> ใช้ 1 สิทธิ์
-                         </div>
-                         <div className={`text-sm font-bold px-3 py-1 rounded-full ${selectedProduct.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                             {selectedProduct.stock > 0 ? `เหลือ ${selectedProduct.stock} ชิ้น` : 'สินค้าหมด'}
-                         </div>
+                         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 mb-4"><Star size={16} fill="currentColor"/> ใช้ 1 สิทธิ์</div>
+                         <div className={`text-sm font-bold px-3 py-1 rounded-full ${selectedProduct.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{selectedProduct.stock > 0 ? `เหลือ ${selectedProduct.stock} ชิ้น` : 'สินค้าหมด'}</div>
                     </div>
-
                     <div className="w-full md:w-2/3 border-t md:border-t-0 md:border-l border-gray-100 pt-6 md:pt-0 md:pl-8">
                         <form onSubmit={handleSubmitOrder} className="space-y-6">
-                            {selectedProduct.options && selectedProduct.options.length > 0 && (
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-gray-800">เลือกแบบ / สี / ไซซ์ <span className="text-red-500">*</span></label>
-                                    <select required className="w-full p-3 rounded-xl border bg-gray-50 focus:bg-white focus:ring-2 focus:ring-[#003781] outline-none transition" value={selectedOption} onChange={(e) => setSelectedOption(e.target.value)}>
-                                        <option value="" disabled>-- กรุณาเลือก --</option>
-                                        {selectedProduct.options.map((opt: string, idx: number) => (
-                                            <option key={idx} value={opt}>{opt}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                            {selectedProduct.options?.length > 0 && (
+                                <div className="space-y-2"><label className="text-sm font-bold text-gray-800">เลือกแบบ / สี / ไซซ์ <span className="text-red-500">*</span></label><select required className="w-full p-3 rounded-xl border bg-gray-50 focus:bg-white focus:ring-2 focus:ring-[#003781] outline-none transition" value={selectedOption} onChange={(e) => setSelectedOption(e.target.value)}><option value="" disabled>-- กรุณาเลือก --</option>{selectedProduct.options.map((opt: string, idx: number) => (<option key={idx} value={opt}>{opt}</option>))}</select></div>
                             )}
-
                             <div className="space-y-2">
                                 <label className="text-sm font-bold text-gray-800">วิธีการรับของ <span className="text-red-500">*</span></label>
                                 <div className="flex gap-4">
-                                    <label className={`flex-1 p-4 rounded-xl border-2 cursor-pointer flex flex-col items-center gap-2 transition ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500'}`}>
-                                        <input type="radio" name="delivery" className="hidden" checked={deliveryMethod === 'delivery'} onChange={() => setDeliveryMethod('delivery')} />
-                                        <Truck size={24}/> <span className="text-sm font-bold">จัดส่งถึงบ้าน</span>
-                                    </label>
-                                    <label className={`flex-1 p-4 rounded-xl border-2 cursor-pointer flex flex-col items-center gap-2 transition ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500'}`}>
-                                        <input type="radio" name="delivery" className="hidden" checked={deliveryMethod === 'pickup'} onChange={() => setDeliveryMethod('pickup')} />
-                                        <Handshake size={24}/> <span className="text-sm font-bold">สะดวกนัดรับ</span>
-                                    </label>
+                                    <label className={`flex-1 p-4 rounded-xl border-2 cursor-pointer flex flex-col items-center gap-2 transition ${deliveryMethod === 'delivery' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500'}`}><input type="radio" name="delivery" className="hidden" checked={deliveryMethod === 'delivery'} onChange={() => setDeliveryMethod('delivery')} /><Truck size={24}/> <span className="text-sm font-bold">จัดส่งถึงบ้าน</span></label>
+                                    <label className={`flex-1 p-4 rounded-xl border-2 cursor-pointer flex flex-col items-center gap-2 transition ${deliveryMethod === 'pickup' ? 'border-[#003781] bg-blue-50 text-[#003781]' : 'border-gray-200 text-gray-500'}`}><input type="radio" name="delivery" className="hidden" checked={deliveryMethod === 'pickup'} onChange={() => setDeliveryMethod('pickup')} /><Handshake size={24}/> <span className="text-sm font-bold">สะดวกนัดรับ</span></label>
                                 </div>
                             </div>
-
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-bold text-gray-800 mb-1 block">ชื่อ-นามสกุล <span className="text-red-500">*</span></label>
-                                    <input required className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none" placeholder="ชื่อจริง" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-bold text-gray-800 mb-1 block">เบอร์โทร <span className="text-red-500">*</span></label>
-                                    <input required type="tel" className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none" placeholder="08x-xxx-xxxx" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-                                </div>
+                                <div><label className="text-sm font-bold text-gray-800 mb-1 block">ชื่อ-นามสกุล <span className="text-red-500">*</span></label><input required className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none" placeholder="ชื่อจริง" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} /></div>
+                                <div><label className="text-sm font-bold text-gray-800 mb-1 block">เบอร์โทร <span className="text-red-500">*</span></label><input required type="tel" className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none" placeholder="08x-xxx-xxxx" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} /></div>
                             </div>
-
                             <div>
                                 <label className="text-sm font-bold text-gray-800 mb-1 block">{deliveryMethod === 'delivery' ? 'ที่อยู่จัดส่ง' : 'สถานที่นัดรับ'} <span className="text-red-500">*</span></label>
-                                <textarea required rows={2} className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none resize-none" 
-                                    placeholder={deliveryMethod === 'delivery' ? "บ้านเลขที่, ถนน, แขวง, เขต, จ.รหัสไปรษณีย์" : "ระบุสถานที่ เช่น BTS สยาม, เซ็นทรัลลาดพร้าว, บ้านลูกค้า/บ้านตัวแทน, ฯลฯ ใน กทม."} 
-                                    value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+                                <textarea required rows={2} className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none resize-none" placeholder={deliveryMethod === 'delivery' ? "บ้านเลขที่, ถนน, แขวง, เขต, จ.รหัสไปรษณีย์" : "ระบุสถานที่ เช่น BTS สยาม, เซ็นทรัลลาดพร้าว, บ้านลูกค้า/บ้านตัวแทน, ฯลฯ ใน กทม."} value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
                             </div>
-
                             {deliveryMethod === 'pickup' && (
                                 <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 animate-fade-in">
                                     <label className="text-sm font-bold text-orange-800 mb-1 block">วันเวลานัดรับ <span className="text-red-500">*</span></label>
                                     <input required type="datetime-local" className="w-full p-3 rounded-xl border bg-white focus:ring-2 focus:ring-[#003781] outline-none cursor-pointer" value={formData.pickupDate} onChange={e => setFormData({...formData, pickupDate: e.target.value})} onClick={(e) => e.currentTarget.showPicker()}/>
+                                    <p className="text-xs text-orange-600 mt-2 flex items-start gap-1"><CalendarCheck size={14} className="mt-0.5 shrink-0"/> ระบุวันเวลาที่สะดวก (ทางเราจะ Confirm วันเวลานัดหมายอีกครั้ง ที่ปุ่มตรวจสอบสถานะ)</p>
                                 </div>
                             )}
-
-                            <div>
-                                <label className="text-sm font-bold text-gray-500 mb-1 block">หมายเหตุ (ถ้ามี)</label>
-                                <input className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none" placeholder="ฝากข้อความถึงผู้ส่ง" value={formData.remark} onChange={e => setFormData({...formData, remark: e.target.value})} />
-                            </div>
-
-                            <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-4 active:scale-95 flex items-center justify-center gap-3">
-                                {loading ? 'กำลังบันทึก...' : <><CheckCircle size={24}/> ยืนยันสิทธิ์</>}
-                            </button>
+                            <div><label className="text-sm font-bold text-gray-500 mb-1 block">หมายเหตุ (ถ้ามี)</label><input className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-[#003781] outline-none" placeholder="ฝากข้อความถึงผู้ส่ง" value={formData.remark} onChange={e => setFormData({...formData, remark: e.target.value})} /></div>
+                            <button disabled={loading} className="w-full bg-[#003781] hover:bg-[#002860] text-white py-4 rounded-xl font-bold text-lg shadow-lg transition-all mt-4 active:scale-95 flex items-center justify-center gap-3">{loading ? 'กำลังบันทึก...' : <><CheckCircle size={24}/> ยืนยันสิทธิ์</>}</button>
                         </form>
                     </div>
                 </div>
@@ -796,42 +451,25 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
       {renderOrderModal()}
       {renderSuccessModal()} 
 
-      {/* Navbar */}
       <div className="fixed top-0 left-0 right-0 z-50 bg-white shadow-md border-b border-[#003781]/10 h-[70px] md:h-[80px]">
         <div className="w-full max-w-7xl mx-auto px-4 h-full flex items-center justify-between">
           <div onClick={() => setView('home')} className="cursor-pointer flex items-center gap-3">
              <div className="bg-blue-50 p-2 rounded-xl border border-blue-100 hidden md:block"><Gift className="text-[#003781]" size={32}/></div>
              <div className="md:hidden"><Gift className="text-[#003781]" size={28}/></div>
-             <div className="flex flex-col leading-none">
-                <span className="text-[#003781] font-extrabold text-xl md:text-2xl tracking-tight uppercase">Allianz</span>
-                <span className="text-gray-400 font-bold text-[10px] md:text-xs tracking-widest uppercase mt-0.5">Privilege Gift 2025</span>
-             </div>
+             <div className="flex flex-col leading-none"><span className="text-[#003781] font-extrabold text-xl md:text-2xl tracking-tight uppercase">Allianz</span><span className="text-gray-400 font-bold text-[10px] md:text-xs tracking-widest uppercase mt-0.5">Privilege Gift 2025</span></div>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
-            {view === 'home' && (
-                <button onClick={() => setIsCheckOrderOpen(true)} className="flex items-center gap-2 text-xs md:text-sm font-bold text-[#003781] bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition border border-blue-100 shadow-sm">
-                    <Truck size={18}/> <span>ตรวจสอบสถานะ</span>
-                </button>
-            )}
-            {view !== 'admin' && view !== 'login' && (
-                <button onClick={() => setView('login')} className="text-gray-300 hover:text-[#003781] p-2 transition-colors"><Lock size={20} /></button>
-            )}
+            {view === 'home' && ( <button onClick={() => setIsCheckOrderOpen(true)} className="flex items-center gap-2 text-xs md:text-sm font-bold text-[#003781] bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition border border-blue-100 shadow-sm"><Truck size={18}/> <span>ตรวจสอบสถานะ</span></button> )}
+            {view !== 'admin' && view !== 'login' && ( <button onClick={() => setView('login')} className="text-gray-300 hover:text-[#003781] p-2 transition-colors"><Lock size={20} /></button> )}
           </div>
         </div>
       </div>
 
       <div className="flex-grow w-full py-6 mt-[70px] md:mt-[80px]">
         <div className="w-full max-w-7xl mx-auto px-4 md:px-6">
-        
         {view === 'home' && (
            <div className="animate-fade-in w-full overflow-hidden">
-             {bannerSettings.showAnnouncement && bannerSettings.announcementText && (
-                <div className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-center py-2 px-4 text-xs md:text-sm font-bold relative rounded-lg shadow-sm mb-4 flex justify-center items-center gap-2">
-                    <Megaphone size={16} className="animate-pulse hidden md:block"/>
-                    <span>{bannerSettings.announcementText}</span>
-                </div>
-            )}
-
+             {bannerSettings.showAnnouncement && bannerSettings.announcementText && ( <div className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-center py-2 px-4 text-xs md:text-sm font-bold relative rounded-lg shadow-sm mb-4 flex justify-center items-center gap-2"><Megaphone size={16} className="animate-pulse hidden md:block"/><span>{bannerSettings.announcementText}</span></div> )}
             <div className="relative w-full aspect-[21/9] min-h-[220px] max-h-[400px] rounded-2xl overflow-hidden shadow-xl mb-6 group bg-gray-200">
                {!isBannerLoaded && (<div className="absolute inset-0 flex items-center justify-center text-gray-400 animate-pulse"><Package size={48} /></div>)}
                <img src={bannerSettings.bannerUrl || "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=2000"} className={`w-full h-full object-cover transition-opacity duration-700 hover:scale-105 ${isBannerLoaded ? 'opacity-100' : 'opacity-0'}`} onLoad={() => setIsBannerLoaded(true)} alt="Banner"/>
@@ -845,14 +483,10 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
             </div>
 
             <div id="products-grid" className="mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                   <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2"><ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น</h2>
-                </div>
+                <div className="flex items-center gap-2 mb-3"><h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2"><ShoppingBag className="text-[#003781]"/> เลือกของขวัญ 1 ชิ้น</h2></div>
                 <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                     <button onClick={() => setSelectedCategory("ทั้งหมด")} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${selectedCategory === "ทั้งหมด" ? 'bg-[#003781] text-white border-[#003781] shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>ทั้งหมด</button>
-                    {categories.filter(c => c.active).map((cat) => (
-                        <button key={cat.id} onClick={() => setSelectedCategory(cat.name)} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${selectedCategory === cat.name ? 'bg-[#003781] text-white border-[#003781] shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{cat.name}</button>
-                    ))}
+                    {categories.filter(c => c.active).map((cat) => (<button key={cat.id} onClick={() => setSelectedCategory(cat.name)} className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${selectedCategory === cat.name ? 'bg-[#003781] text-white border-[#003781] shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>{cat.name}</button>))}
                 </div>
             </div>
 
@@ -904,9 +538,10 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
                </div>
              </div>
              
-             <div className="grid grid-cols-3 gap-2 md:gap-4 mb-6">
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6">
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center"><span className="text-gray-500 text-xs md:text-sm font-bold">ออเดอร์ทั้งหมด</span><span className="text-2xl md:text-3xl font-bold text-[#003781]">{stats.total}</span></div>
                 <div className="bg-white p-4 rounded-xl border border-orange-200 shadow-sm flex flex-col items-center bg-orange-50"><span className="text-orange-600 text-xs md:text-sm font-bold">รอดำเนินการ</span><span className="text-2xl md:text-3xl font-bold text-orange-600">{stats.pending}</span></div>
+                <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-sm flex flex-col items-center bg-emerald-50"><span className="text-emerald-600 text-xs md:text-sm font-bold">ยืนยัน/กำลังเตรียม</span><span className="text-2xl md:text-3xl font-bold text-emerald-600">{stats.confirmed}</span></div>
                 <div className="bg-white p-4 rounded-xl border border-green-200 shadow-sm flex flex-col items-center bg-green-50"><span className="text-green-600 text-xs md:text-sm font-bold">เสร็จสิ้นแล้ว</span><span className="text-2xl md:text-3xl font-bold text-green-600">{stats.completed}</span></div>
              </div>
 
@@ -919,14 +554,10 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
              
              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6 min-h-[400px] w-full">
                
-               {/* TAB: ORDERS */}
                {adminTab === 'orders' && (
                  <div className="w-full">
                     <div className="flex flex-col md:flex-row gap-4 mb-4 justify-between items-center bg-gray-50 p-3 rounded-lg border">
-                        <div className="relative w-full md:w-96">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                            <input className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="ค้นหา Order No, ชื่อ, เบอร์..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/>
-                        </div>
+                        <div className="relative w-full md:w-96"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/><input className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="ค้นหา Order No, ชื่อ, เบอร์..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/></div>
                         <button onClick={exportToCSV} className="w-full md:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition"><Download size={18}/> Export Excel</button>
                     </div>
 
@@ -946,28 +577,13 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
                                  <h4 className="text-sm font-bold text-[#003781] mb-2">การจัดส่ง & สถานะ</h4>
                                  <div className="space-y-3">
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="text-xs text-gray-500 font-bold">วิธีรับของ</label>
-                                            <select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.deliveryMethod} onChange={e => setEditingOrder({...editingOrder, deliveryMethod: e.target.value})}>
-                                                <option value="จัดส่งถึงบ้าน">จัดส่งถึงบ้าน</option>
-                                                <option value="นัดรับ">นัดรับ</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-gray-500 font-bold">สถานะ</label>
-                                            <select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.status} onChange={e => setEditingOrder({...editingOrder, status: e.target.value})}>
-                                                <option value="pending">รอดำเนินการ</option>
-                                                <option value="confirmed_date">ยืนยันวันเวลา</option>
-                                                <option value="completed">เสร็จสิ้น/ส่งแล้ว</option>
-                                            </select>
-                                        </div>
+                                        <div><label className="text-xs text-gray-500 font-bold">วิธีรับของ</label><select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.deliveryMethod} onChange={e => setEditingOrder({...editingOrder, deliveryMethod: e.target.value})}><option value="จัดส่งถึงบ้าน">จัดส่งถึงบ้าน</option><option value="นัดรับ">นัดรับ</option></select></div>
+                                        {/* FIX: Status Dropdown Logic */}
+                                        <div><label className="text-xs text-gray-500 font-bold">สถานะ</label><select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.status} onChange={e => setEditingOrder({...editingOrder, status: e.target.value})}><option value="pending">รอดำเนินการ</option><option value="confirmed">ยืนยัน/กำลังเตรียม</option><option value="completed">เสร็จสิ้น/ส่งแล้ว</option></select></div>
                                     </div>
                                     <div><label className="text-xs text-gray-500 font-bold flex items-center gap-1"><Truck size={12}/> เลขพัสดุ (Tracking)</label><input className="w-full p-2 border rounded text-gray-900 bg-white placeholder-gray-400" placeholder="เช่น Kerry: KER123..." value={editingOrder.trackingNumber || ''} onChange={e => setEditingOrder({...editingOrder, trackingNumber: e.target.value})} /></div>
                                     <div><label className="text-xs text-gray-500 font-bold">ที่อยู่ / จุดนัดรับ</label><textarea required rows={3} className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.address} onChange={e => setEditingOrder({...editingOrder, address: e.target.value})} /></div>
-                                    <div>
-                                        <label className="text-xs text-gray-500 font-bold text-orange-600">เวลานัดรับ</label>
-                                        <input type="datetime-local" className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.pickupDate || ''} onChange={e => setEditingOrder({...editingOrder, pickupDate: e.target.value})} />
-                                    </div>
+                                    <div><label className="text-xs text-gray-500 font-bold text-orange-600">เวลานัดรับ</label><input type="datetime-local" className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.pickupDate || ''} onChange={e => setEditingOrder({...editingOrder, pickupDate: e.target.value})} /></div>
                                  </div>
                             </div>
                             <div className="pt-2 flex gap-3"><button type="submit" className="flex-1 bg-[#003781] text-white py-2 rounded-lg font-bold">บันทึก</button></div>
@@ -978,42 +594,19 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
 
                    <div className="overflow-x-auto w-full">
                      <table className="w-full text-left text-sm min-w-[900px]">
-                       <thead className="bg-gray-50 text-gray-700 font-bold border-b">
-                         <tr>
-                           <th className="p-3 w-10 text-center">สถานะ</th>
-                           <th className="p-3 w-28">Order No.</th> {/* NEW COLUMN */}
-                           <th className="p-3 w-28">วันที่</th>
-                           <th className="p-3 w-24">ประเภท</th>
-                           <th className="p-3 w-36">ลูกค้า</th>
-                           <th className="p-3 w-28">เบอร์โทร</th>
-                           <th className="p-3 w-40">สินค้า (Code)</th>
-                           <th className="p-3">ที่อยู่ / นัดรับ</th>
-                           <th className="p-3 w-20 text-center">Action</th>
-                         </tr>
-                       </thead>
+                       <thead className="bg-gray-50 text-gray-700 font-bold border-b"><tr><th className="p-3 w-10 text-center">สถานะ</th><th className="p-3 w-28">Order No.</th><th className="p-3 w-28">วันที่</th><th className="p-3 w-24">ประเภท</th><th className="p-3 w-36">ลูกค้า</th><th className="p-3 w-28">เบอร์โทร</th><th className="p-3 w-40">สินค้า (Code)</th><th className="p-3">ที่อยู่ / นัดรับ</th><th className="p-3 w-20 text-center">Action</th></tr></thead>
                        <tbody className="divide-y">
                          {filteredOrders.map((order) => {
-                           const isCompleted = order.status === 'completed';
-                           const isConfirmedDate = order.status === 'confirmed_date';
+                           const isCompleted = order.status === 'completed'; const isConfirmed = order.status === 'confirmed' || order.status === 'confirmed_date';
                            return (
                            <tr key={order.id} className={`hover:bg-gray-50 text-gray-800 ${isCompleted ? 'bg-gray-50/50' : ''}`}>
-                             <td className="p-3 text-center">
-                                <button onClick={() => handleToggleStatus(order)} className={`transition-all ${isCompleted ? 'text-green-500' : (isConfirmedDate ? 'text-emerald-500' : 'text-gray-300 hover:text-green-400')}`}>
-                                    {isCompleted ? <CheckSquare size={24}/> : (isConfirmedDate ? <CalendarCheck size={24}/> : <div className="w-6 h-6 border-2 border-gray-300 rounded hover:border-green-400"></div>)}
-                                </button>
-                             </td>
-                             <td className="p-3 font-mono text-xs font-bold text-[#003781]">{order.orderNumber || '-'}</td> {/* SHOW ORDER NO */}
+                             <td className="p-3 text-center"><button onClick={() => handleToggleStatus(order)} className={`transition-all ${isCompleted ? 'text-green-500' : (isConfirmed ? 'text-emerald-500' : 'text-gray-300 hover:text-green-400')}`}>{isCompleted ? <CheckSquare size={24}/> : (isConfirmed ? <CalendarCheck size={24}/> : <div className="w-6 h-6 border-2 border-gray-300 rounded hover:border-green-400"></div>)}</button></td>
+                             <td className="p-3 font-mono text-xs font-bold text-[#003781]">{order.orderNumber || '-'}</td> 
                              <td className="p-3 text-gray-500 whitespace-nowrap text-xs">{order.timestamp?.toDate().toLocaleDateString('th-TH')}<div className="text-[10px] opacity-70">{order.timestamp?.toDate().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})}</div></td>
                              <td className="p-3"><span className={`px-2 py-1 rounded text-[10px] font-bold ${order.deliveryMethod === 'นัดรับ' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>{order.deliveryMethod || 'จัดส่ง'}</span></td>
-                             <td className="p-3 font-medium text-[#003781]">{order.name}</td>
-                             <td className="p-3 text-gray-600">{order.phone}</td>
+                             <td className="p-3 font-medium text-[#003781]">{order.name}</td><td className="p-3 text-gray-600">{order.phone}</td>
                              <td className="p-3"><div className="font-bold text-gray-800">{order.product}</div>{order.productOption && order.productOption !== '-' && <div className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded w-fit my-1 border border-yellow-200">{order.productOption}</div>}<div className="text-[10px] text-gray-400 font-mono">Code: {order.productCode}</div></td>
-                             <td className="p-3 text-gray-600 min-w-[200px] text-xs">
-                                {order.address}
-                                {order.remark && <div className="text-gray-400 italic mt-1">Note: {order.remark}</div>}
-                                {order.pickupDate && <div className={`mt-1 font-bold flex items-center gap-1 ${isConfirmedDate ? 'text-emerald-600' : 'text-orange-600'}`}><Clock size={10}/> นัด: {new Date(order.pickupDate).toLocaleString('th-TH')}</div>}
-                                {order.trackingNumber && <div className="mt-1 text-blue-600 font-mono bg-blue-50 px-1 rounded w-fit">📦 {order.trackingNumber}</div>}
-                             </td>
+                             <td className="p-3 text-gray-600 min-w-[200px] text-xs">{order.address}{order.remark && <div className="text-gray-400 italic mt-1">Note: {order.remark}</div>}{order.pickupDate && <div className={`mt-1 font-bold flex items-center gap-1 ${isConfirmed ? 'text-emerald-600' : 'text-orange-600'}`}><Clock size={10}/> นัด: {new Date(order.pickupDate).toLocaleString('th-TH')}</div>}{order.trackingNumber && <div className="mt-1 text-blue-600 font-mono bg-blue-50 px-1 rounded w-fit">📦 {order.trackingNumber}</div>}</td>
                              <td className="p-3 text-center flex gap-1 justify-center"><button onClick={() => setEditingOrder(order)} className="p-1.5 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"><Edit size={14}/></button><button onClick={() => handleDeleteOrder(order.id)} className="p-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200"><Trash2 size={14}/></button></td>
                            </tr>
                          )})}
@@ -1039,14 +632,7 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
                                 <div><label className="text-xs text-gray-500 font-bold">รหัสสินค้า</label><input required className="w-full p-2 border rounded text-gray-900 bg-gray-50" placeholder="เช่น ABC-001" value={editingProduct.code || ''} onChange={e => setEditingProduct({...editingProduct, code: e.target.value})} /></div>
                                 <div><label className="text-xs text-gray-500 font-bold">จำนวนสต็อก</label><input required type="number" className="w-full p-2 border rounded text-gray-900 bg-gray-50" placeholder="0" value={editingProduct.stock || 0} onChange={e => setEditingProduct({...editingProduct, stock: e.target.value})} /></div>
                             </div>
-                            <div>
-                                <label className="text-xs text-gray-500 font-bold">หมวดหมู่ (Category)</label>
-                                <div className="flex gap-2">
-                                    <select className="flex-1 p-2 border rounded text-gray-900 bg-white" value={editingProduct.category || categories[0]?.name || ''} onChange={e => setEditingProduct({...editingProduct, category: e.target.value})}>
-                                        {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                    </select>
-                                </div>
-                            </div>
+                            <div><label className="text-xs text-gray-500 font-bold">หมวดหมู่</label><select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingProduct.category || categories[0]?.name || ''} onChange={e => setEditingProduct({...editingProduct, category: e.target.value})}>{categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
                             <div><label className="text-xs text-gray-500 font-bold">ชื่อสินค้า</label><input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.name || ''} onChange={e => setEditingProduct({...editingProduct, name: e.target.value})} /></div>
                             <div><label className="text-xs text-gray-500 font-bold">รายละเอียด</label><input required className="w-full p-2 border rounded text-gray-900" value={editingProduct.description || ''} onChange={e => setEditingProduct({...editingProduct, description: e.target.value})} /></div>
                             <div><label className="text-xs text-gray-500 font-bold flex items-center gap-1"><Layers size={12}/> ตัวเลือกสินค้า (ถ้ามี)</label><input className="w-full p-2 border rounded text-gray-900 bg-yellow-50" placeholder="เช่น: สีแดง, สีน้ำเงิน, S, M, L" value={editingProduct.optionsString || ''} onChange={e => setEditingProduct({...editingProduct, optionsString: e.target.value})} /></div>
@@ -1079,18 +665,8 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
                {adminTab === 'categories' && (
                    <div className="max-w-2xl">
                        <h3 className="font-bold text-lg mb-4">จัดการหมวดหมู่สินค้า</h3>
-                       <form onSubmit={handleAddCategory} className="flex gap-2 mb-6 bg-gray-50 p-4 rounded-xl border">
-                           <input className="flex-1 p-2 border rounded-lg text-gray-900 focus:ring-2 focus:ring-[#003781] outline-none" placeholder="ชื่อหมวดหมู่ใหม่" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}/>
-                           <button className="bg-[#003781] text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#002860]"><Plus size={18}/> เพิ่ม</button>
-                       </form>
-                       <div className="space-y-2">
-                           {categories.map((cat) => (
-                               <div key={cat.id} className="flex items-center justify-between p-3 border rounded-lg bg-white hover:bg-gray-50 transition">
-                                   <div className="flex items-center gap-3"><Folder className="text-yellow-500" size={20}/><span className={`font-bold ${!cat.active ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{cat.name}</span></div>
-                                   <div className="flex gap-2"><button onClick={() => handleToggleCategory(cat)} className={`p-2 rounded-lg transition-colors ${cat.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`} title={cat.active ? 'กำลังแสดง' : 'ถูกซ่อน'}><Power size={18}/></button><button onClick={() => handleDeleteCategory(cat.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors" title="ลบหมวดหมู่"><Trash2 size={18}/></button></div>
-                               </div>
-                           ))}
-                       </div>
+                       <form onSubmit={handleAddCategory} className="flex gap-2 mb-6 bg-gray-50 p-4 rounded-xl border"><input className="flex-1 p-2 border rounded-lg text-gray-900 focus:ring-2 focus:ring-[#003781] outline-none" placeholder="ชื่อหมวดหมู่ใหม่" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}/><button className="bg-[#003781] text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#002860]"><Plus size={18}/> เพิ่ม</button></form>
+                       <div className="space-y-2">{categories.map((cat) => (<div key={cat.id} className="flex items-center justify-between p-3 border rounded-lg bg-white hover:bg-gray-50 transition"><div className="flex items-center gap-3"><Folder className="text-yellow-500" size={20}/><span className={`font-bold ${!cat.active ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{cat.name}</span></div><div className="flex gap-2"><button onClick={() => handleToggleCategory(cat)} className={`p-2 rounded-lg transition-colors ${cat.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`} title={cat.active ? 'กำลังแสดง' : 'ถูกซ่อน'}><Power size={18}/></button><button onClick={() => handleDeleteCategory(cat.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors" title="ลบหมวดหมู่"><Trash2 size={18}/></button></div></div>))}</div>
                    </div>
                )}
 
@@ -1098,19 +674,10 @@ ${lastOrder.remark ? `📝 หมายเหตุ: ${lastOrder.remark}` : ''}
                  <div className="max-w-xl">
                    <h3 className="font-bold text-lg mb-4 border-b pb-2">ตั้งค่าหน้าเว็บ</h3>
                    <div className="space-y-4">
-                     <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
-                        <label className="text-sm font-bold text-gray-800 mb-2 block flex items-center gap-2"><Megaphone size={16}/> แถบประกาศด้านบน (Top Bar)</label>
-                        <div className="flex items-center gap-2 mb-2"><input type="checkbox" checked={bannerSettings.showAnnouncement} onChange={e => setBannerSettings({...bannerSettings, showAnnouncement: e.target.checked})} className="w-4 h-4"/><span className="text-sm">แสดงแถบประกาศ</span></div>
-                        <input className="w-full p-2 border rounded-lg text-gray-900 text-sm" placeholder="ใส่ข้อความประกาศ..." value={bannerSettings.announcementText} onChange={e => setBannerSettings({...bannerSettings, announcementText: e.target.value})} />
-                     </div>
+                     <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200"><label className="text-sm font-bold text-gray-800 mb-2 block flex items-center gap-2"><Megaphone size={16}/> แถบประกาศด้านบน (Top Bar)</label><div className="flex items-center gap-2 mb-2"><input type="checkbox" checked={bannerSettings.showAnnouncement} onChange={e => setBannerSettings({...bannerSettings, showAnnouncement: e.target.checked})} className="w-4 h-4"/><span className="text-sm">แสดงแถบประกาศ</span></div><input className="w-full p-2 border rounded-lg text-gray-900 text-sm" placeholder="ใส่ข้อความประกาศ..." value={bannerSettings.announcementText} onChange={e => setBannerSettings({...bannerSettings, announcementText: e.target.value})} /></div>
                      <div><label className="block text-sm font-bold text-gray-700 mb-1">หัวข้อหลัก (Banner Title)</label><textarea rows={2} className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.title} onChange={e => setBannerSettings({...bannerSettings, title: e.target.value})} /></div>
                      <div><label className="block text-sm font-bold text-gray-700 mb-1">ข้อความรอง (Subtitle / Badge)</label><input className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.subtitle} onChange={e => setBannerSettings({...bannerSettings, subtitle: e.target.value})} /></div>
-                     <div className="border p-4 rounded-xl bg-gray-50">
-                        <label className="block text-sm font-bold text-gray-700 mb-2">รูปแบนเนอร์ (Banner Image)</label>
-                        <input type="file" accept="image/*" onChange={handleBannerImageUpload} className="w-full mb-3 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"/>
-                        <input className="w-full p-3 border rounded-xl text-gray-900 text-sm" placeholder="หรือใส่ URL รูปภาพ..." value={bannerSettings.bannerUrl} onChange={e => setBannerSettings({...bannerSettings, bannerUrl: e.target.value})} />
-                        {bannerSettings.bannerUrl && (<div className="mt-3 rounded-lg overflow-hidden border"><img src={bannerSettings.bannerUrl} className="w-full h-32 object-cover"/></div>)}
-                     </div>
+                     <div className="border p-4 rounded-xl bg-gray-50"><label className="block text-sm font-bold text-gray-700 mb-2">รูปแบนเนอร์ (Banner Image)</label><input type="file" accept="image/*" onChange={handleBannerImageUpload} className="w-full mb-3 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"/><input className="w-full p-3 border rounded-xl text-gray-900 text-sm" placeholder="หรือใส่ URL รูปภาพ..." value={bannerSettings.bannerUrl} onChange={e => setBannerSettings({...bannerSettings, bannerUrl: e.target.value})} />{bannerSettings.bannerUrl && (<div className="mt-3 rounded-lg overflow-hidden border"><img src={bannerSettings.bannerUrl} className="w-full h-32 object-cover"/></div>)}</div>
                      <button onClick={handleSaveBanner} className="bg-[#003781] hover:bg-[#002860] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all w-full justify-center md:w-auto"><Save size={18}/> บันทึกการตั้งค่า</button>
                    </div>
                  </div>
