@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingBag, CheckCircle, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, Truck, Handshake, MessageCircle, Receipt, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Megaphone, Star, ChevronRight, Gift, CalendarCheck, Folder, Power, Calendar, ArrowRight } from 'lucide-react';
+import { ShoppingBag, CheckCircle, Lock, Database, Edit, Trash2, Plus, Eye, EyeOff, Save, LogOut, X, Package, MapPin, Phone, Truck, Handshake, MessageCircle, Receipt, ZoomIn, Tag, Search, Download, Clock, CheckSquare, Layers, Megaphone, Star, ChevronRight, Gift, CalendarCheck, Folder, Power, Calendar, ArrowRight, Timer } from 'lucide-react';
 import { db } from './firebase'; 
 import { collection, addDoc, getDocs, orderBy, query, Timestamp, doc, updateDoc, deleteDoc, setDoc, getDoc, where } from 'firebase/firestore';
 
@@ -22,8 +22,18 @@ export default function App() {
   const [products, setProducts] = useState<any[]>([]); 
   const [categories, setCategories] = useState<any[]>([]); 
   const [selectedCategory, setSelectedCategory] = useState("ทั้งหมด");
+  
+  // Update Settings State with Campaign Timer
   const [bannerSettings, setBannerSettings] = useState({
-    bannerUrl: "", title: "ของขวัญพิเศษ แทนคำขอบคุณ", subtitle: "Privilege 2025", showAnnouncement: true, announcementText: "🎉 แลกรับได้ตั้งแต่วันนี้ - 15 มกราคม 2569 เท่านั้น!",
+    bannerUrl: "", 
+    title: "ของขวัญพิเศษ แทนคำขอบคุณ",
+    subtitle: "Privilege 2025",
+    showAnnouncement: true,
+    announcementText: "🎉 แลกรับได้ตั้งแต่วันนี้ - 15 มกราคม 2569 เท่านั้น!",
+    // Campaign Timer Settings
+    enableCampaignTimer: false,
+    campaignStart: "", // ISO String format for input type="datetime-local"
+    campaignEnd: ""
   });
   const [isBannerLoaded, setIsBannerLoaded] = useState(false);
 
@@ -37,6 +47,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
   const [formData, setFormData] = useState({ name: '', phone: '', address: '', pickupDate: '', remark: '' }); 
+  const [finalDeliveryMethod, setFinalDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery'); 
   const [lastOrder, setLastOrder] = useState<any>(null);
 
   // Admin States
@@ -56,6 +67,22 @@ export default function App() {
   const [myOrders, setMyOrders] = useState<any[] | null>(null);
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
 
+  // --- Campaign Logic ---
+  const checkCampaignStatus = () => {
+      if (!bannerSettings.enableCampaignTimer) return { isOpen: true, message: "" };
+      
+      const now = new Date();
+      const start = bannerSettings.campaignStart ? new Date(bannerSettings.campaignStart) : null;
+      const end = bannerSettings.campaignEnd ? new Date(bannerSettings.campaignEnd) : null;
+
+      if (start && now < start) return { isOpen: false, message: `กิจกรรมจะเริ่มในวันที่ ${start.toLocaleDateString('th-TH')} เวลา ${start.toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'})}` };
+      if (end && now > end) return { isOpen: false, message: "หมดเวลาร่วมกิจกรรมแล้ว ขอบคุณที่สนใจครับ" };
+      
+      return { isOpen: true, message: "" };
+  };
+
+  const campaignStatus = checkCampaignStatus();
+
   // --- Initial Setup ---
   useEffect(() => {
     const metaId = 'viewport-meta-tag-force';
@@ -69,7 +96,7 @@ export default function App() {
   useEffect(() => {
     const total = orders.length;
     const pending = orders.filter(o => o.status === 'pending').length;
-    const confirmed = orders.filter(o => o.status === 'confirmed').length; 
+    const confirmed = orders.filter(o => o.status === 'confirmed' || o.status === 'confirmed_date').length; 
     const completed = orders.filter(o => o.status === 'completed').length;
     setStats({ total, pending, confirmed, completed });
 
@@ -145,14 +172,13 @@ export default function App() {
       ...orders.map(o => {
         let statusText = 'รอตรวจสอบ';
         if (o.status === 'completed') statusText = 'เสร็จสิ้น';
-        if (o.status === 'confirmed') statusText = 'ยืนยัน/กำลังเตรียม';
+        if (o.status === 'confirmed' || o.status === 'confirmed_date') statusText = 'ยืนยัน/กำลังเตรียม';
         return [`"${o.orderNumber||'-'}"`, o.timestamp?.toDate().toLocaleDateString('th-TH')||'-', statusText, `"${o.trackingNumber||'-'}"`, o.deliveryMethod||'-', `"${o.name||''}"`, `"${o.phone||''}"`, `"${o.product||''}"`, `"${o.productOption||'-'}"`, `"${(o.address||'').replace(/\n/g, ' ')}"`, o.pickupDate ? new Date(o.pickupDate).toLocaleString('th-TH') : '-', `"${o.remark||''}"`].join(",");
       })
     ].join("\n");
     const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob(["\uFEFF"+csvContent], {type:'text/csv;charset=utf-8;'})); link.download = `orders_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
-  // --- Client Search Logic (Fixed V16) ---
   const handleCheckOrderSearch = async (e: any) => {
       e.preventDefault(); if (!checkOrderPhone.trim()) return;
       setIsSearchingOrder(true);
@@ -160,7 +186,6 @@ export default function App() {
         const q = query(collection(db, "orders"), where("phone", "==", checkOrderPhone.trim()));
         const snapshot = await getDocs(q);
         const foundOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Sort by timestamp desc locally
         foundOrders.sort((a: any, b: any) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
         setMyOrders(foundOrders);
       } catch (error: any) { alert("เกิดข้อผิดพลาด: " + error.message); }
@@ -169,6 +194,7 @@ export default function App() {
 
   const handleSubmitOrder = async (e: any) => {
     e.preventDefault();
+    if (!campaignStatus.isOpen) { alert(campaignStatus.message); return; } // Double Check
     if (selectedProduct.options?.length > 0 && !selectedOption) { alert("กรุณาเลือกตัวเลือกสินค้าก่อนครับ"); return; }
     setLoading(true); 
     try {
@@ -186,7 +212,7 @@ export default function App() {
             };
             await addDoc(collection(db, "orders"), orderData);
             await updateDoc(productRef, { stock: currentStock - 1 });
-            setLastOrder(orderData); 
+            setLastOrder(orderData); setFinalDeliveryMethod(deliveryMethod); 
             setLoading(false); setIsOrderModalOpen(false); setIsSuccessModalOpen(true); fetchContent();
         } else { alert("สินค้าหมดพอดีครับ"); setLoading(false); setIsOrderModalOpen(false); fetchContent(); }
     } catch (error: any) { alert("Error: " + error.message); setLoading(false); }
@@ -195,11 +221,10 @@ export default function App() {
   const handleLogin = (e: any) => { e.preventDefault(); if (adminPassInput === ADMIN_PASSWORD) { fetchOrders(); setView('admin'); setAdminPassInput(''); } else { alert("รหัสผ่านไม่ถูกต้อง"); } };
   const fetchOrders = async () => { const q = query(collection(db, "orders"), orderBy("timestamp", "desc")); const s = await getDocs(q); setOrders(s.docs.map(d => ({ id: d.id, ...d.data() }))); };
   
-  // Update Logic: Cycle pending -> confirmed -> completed
   const handleToggleStatus = async (order: any) => {
     let newStatus = 'pending';
     if (order.status === 'pending') newStatus = 'confirmed';
-    else if (order.status === 'confirmed' || order.status === 'confirmed_date') newStatus = 'completed'; // Handle old status key too
+    else if (order.status === 'confirmed' || order.status === 'confirmed_date') newStatus = 'completed';
     const updated = orders.map(o => o.id === order.id ? {...o, status: newStatus} : o);
     setOrders(updated); await updateDoc(doc(db, "orders", order.id), { status: newStatus });
   };
@@ -230,43 +255,24 @@ export default function App() {
   const openEditProduct = (p: any) => { setEditingProduct({ ...p, optionsString: p.options?.join(', ') || '' }); };
   const getFilteredProducts = () => { return selectedCategory === "ทั้งหมด" ? products : products.filter(p => p.category === selectedCategory); };
 
-  const Footer = () => ( <footer className="w-full bg-white border-t border-gray-200 py-6 text-center mt-auto"><div className="container mx-auto px-4"><p className="text-gray-600 text-sm md:text-base">© 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/><span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v16.0</span></p></div></footer> ); 
+  const Footer = () => ( <footer className="w-full bg-white border-t border-gray-200 py-6 text-center mt-auto"><div className="container mx-auto px-4"><p className="text-gray-600 text-sm md:text-base">© 2025 Allianz Ayudhya. สงวนสิทธิ์ 1 ท่านต่อ 1 สิทธิ์ <br/><span className="text-xs text-gray-400">Campaign by นัท อลิอันซ์ v17.0</span></p></div></footer> ); 
   const ImageModal = () => { if (!viewingImage) return null; return ( <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 animate-fade-in" onClick={() => setViewingImage(null)}><button className="absolute top-4 right-4 text-white bg-white/20 rounded-full p-2 hover:bg-white/40"><X size={24} /></button><img src={viewingImage} className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()}/></div> ); };
 
-  // --- COMPONENT: Timeline (Visual Tracker) - FIX V16 Logic ---
   const OrderTimeline = ({ status, method }: { status: string, method: string }) => {
-    // Logic: 1=Pending, 2=Confirmed (Processing), 3=Completed
     let step = 1;
-    if (status === 'confirmed' || status === 'confirmed_date') step = 2; // Support both old & new key
+    if (status === 'confirmed' || status === 'confirmed_date') step = 2;
     if (status === 'completed') step = 3;
-
-    // Text Logic based on Method
     const step2Text = method.includes('นัดรับ') ? 'ยืนยันวันนัด' : 'กำลังเตรียมของ';
     const step3Text = method.includes('นัดรับ') ? 'รับของแล้ว' : 'จัดส่งสำเร็จ';
-
     return (
         <div className="w-full py-4 px-2">
             <div className="relative flex items-center justify-between w-full mb-2">
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-gray-200 -z-10"></div>
-                {/* Step 1 */}
-                <div className={`flex flex-col items-center gap-1 bg-white px-2`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${step >= 1 ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300 text-gray-300'}`}><Package size={14} /></div>
-                    <span className={`text-[10px] font-bold ${step >= 1 ? 'text-green-600' : 'text-gray-400'}`}>รับเรื่อง</span>
-                </div>
-                 {/* Line 1-2 */}
+                <div className={`flex flex-col items-center gap-1 bg-white px-2`}><div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${step >= 1 ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300 text-gray-300'}`}><Package size={14} /></div><span className={`text-[10px] font-bold ${step >= 1 ? 'text-green-600' : 'text-gray-400'}`}>รับเรื่อง</span></div>
                  <div className={`absolute left-[15%] right-[50%] h-1 top-1/2 -translate-y-1/2 transition-all duration-500 ${step >= 2 ? 'bg-green-500' : 'bg-gray-200'} -z-0`}></div>
-                {/* Step 2 */}
-                <div className={`flex flex-col items-center gap-1 bg-white px-2`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${step >= 2 ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300 text-gray-300'}`}><CheckSquare size={14} /></div>
-                    <span className={`text-[10px] font-bold ${step >= 2 ? 'text-green-600' : 'text-gray-400'}`}>{step2Text}</span>
-                </div>
-                {/* Line 2-3 */}
+                <div className={`flex flex-col items-center gap-1 bg-white px-2`}><div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${step >= 2 ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300 text-gray-300'}`}><CheckSquare size={14} /></div><span className={`text-[10px] font-bold ${step >= 2 ? 'text-green-600' : 'text-gray-400'}`}>{step2Text}</span></div>
                 <div className={`absolute left-[50%] right-[15%] h-1 top-1/2 -translate-y-1/2 transition-all duration-500 ${step >= 3 ? 'bg-green-500' : 'bg-gray-200'} -z-0`}></div>
-                {/* Step 3 */}
-                <div className={`flex flex-col items-center gap-1 bg-white px-2`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${step >= 3 ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300 text-gray-300'}`}><Truck size={14} /></div>
-                    <span className={`text-[10px] font-bold ${step >= 3 ? 'text-green-600' : 'text-gray-400'}`}>{step3Text}</span>
-                </div>
+                <div className={`flex flex-col items-center gap-1 bg-white px-2`}><div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${step >= 3 ? 'bg-green-500 border-green-500 text-white' : 'bg-white border-gray-300 text-gray-300'}`}><Truck size={14} /></div><span className={`text-[10px] font-bold ${step >= 3 ? 'text-green-600' : 'text-gray-400'}`}>{step3Text}</span></div>
             </div>
         </div>
     );
@@ -298,19 +304,11 @@ export default function App() {
                                             {order.productOption && order.productOption !== '-' && <span className="text-xs text-gray-500">({order.productOption})</span>}
                                         </div>
                                     </div>
-                                    {/* Tracking Timeline */}
-                                    <div className="bg-white p-2 rounded-lg border border-gray-100 my-3 shadow-inner">
-                                        <OrderTimeline status={order.status} method={order.deliveryMethod} />
-                                    </div>
+                                    <div className="bg-white p-2 rounded-lg border border-gray-100 my-3 shadow-inner"><OrderTimeline status={order.status} method={order.deliveryMethod} /></div>
                                     <div className="text-sm text-gray-600 border-t border-gray-200 pt-2 mt-2">
-                                        <p className="flex items-center gap-2 mb-1">
-                                            {order.deliveryMethod === 'จัดส่งถึงบ้าน' ? <Truck size={14}/> : <MapPin size={14}/>}
-                                            <span className="font-bold">{order.deliveryMethod}</span>
-                                        </p>
+                                        <p className="flex items-center gap-2 mb-1">{order.deliveryMethod === 'จัดส่งถึงบ้าน' ? <Truck size={14}/> : <MapPin size={14}/>}<span className="font-bold">{order.deliveryMethod}</span></p>
                                         {(order.status === 'confirmed' || order.status === 'confirmed_date') && order.pickupDate && (
-                                             <div className="mt-2 bg-emerald-50 p-2 border border-emerald-100 rounded text-emerald-800 text-sm font-bold flex items-center gap-2 animate-pulse">
-                                                <CalendarCheck size={16}/> <span>นัดรับ: {new Date(order.pickupDate).toLocaleString('th-TH')}</span>
-                                            </div>
+                                             <div className="mt-2 bg-emerald-50 p-2 border border-emerald-100 rounded text-emerald-800 text-sm font-bold flex items-center gap-2 animate-pulse"><CalendarCheck size={16}/> <span>นัดรับ: {new Date(order.pickupDate).toLocaleString('th-TH')}</span></div>
                                         )}
                                         {order.trackingNumber && (<div className="mt-2 bg-blue-50 p-2 border border-blue-100 rounded text-blue-800 text-sm font-mono flex items-center gap-2">📦 <b>Track:</b> {order.trackingNumber}</div>)}
                                     </div>
@@ -324,7 +322,6 @@ export default function App() {
     )
   }
 
-  // --- Modal: Success Popup (Final V16.0: Restore Text + Force Line) ---
   const renderSuccessModal = () => {
       if (!isSuccessModalOpen || !lastOrder) return null;
       const orderRef = lastOrder.orderNumber;
@@ -334,18 +331,16 @@ export default function App() {
 
       return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div> {/* Removed onClick to close */}
+             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
              <div className="bg-white w-full max-w-md rounded-xl shadow-2xl relative animate-slide-up overflow-hidden max-h-[95vh] overflow-y-auto">
                 <div className="bg-[#003781] h-2 w-full"></div>
                 <div className="p-6 flex flex-col items-center text-center">
                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 shadow-sm"><CheckCircle className="text-green-600 w-8 h-8" /></div>
                     <h2 className="text-xl font-bold text-[#003781] mb-2">บันทึกข้อมูลสำเร็จ</h2>
-                    {/* Logic Text */}
                     <div className="text-sm text-gray-500 mb-6 space-y-1">
-                        {lastOrder.deliveryMethod === 'นัดรับ' ? (
+                        {finalDeliveryMethod === 'pickup' ? (
                             <>
-                                <p>ขอบคุณที่ร่วมกิจกรรม</p>
-                                <p>ระบบได้รับข้อมูลเรียบร้อยแล้ว</p>
+                                <p>ขอบคุณที่ร่วมกิจกรรม ระบบได้รับข้อมูลเรียบร้อยแล้ว</p>
                                 <p>สามารถตรวจสอบสถานะได้ที่ปุ่ม "ตรวจสอบสถานะ"</p>
                                 <p className="text-amber-500 font-bold mt-2 animate-pulse">👇 กรุณากดปุ่ม "ส่งสรุปรายการเข้า Line OA" ด้านล่าง</p>
                             </>
@@ -358,7 +353,6 @@ export default function App() {
                             </>
                         )}
                     </div>
-                    {/* Receipt Card */}
                     <div className="w-full bg-white border border-gray-200 rounded-lg shadow-sm mb-6 overflow-hidden text-left relative">
                          <div className="bg-gray-50 p-4 border-b border-gray-200 border-dashed flex justify-between items-start">
                             <div><div className="text-xs font-bold text-gray-400 uppercase tracking-wide">Order Receipt</div><div className="text-[#003781] font-black text-lg tracking-tight">ALLIANZ GIFT</div><div className="text-[10px] text-gray-500 font-medium">สำหรับลูกค้าประกัน นัท อลิอันซ์ เท่านั้น</div></div>
@@ -378,7 +372,6 @@ export default function App() {
                          </div>
                          <div className="bg-gray-50 p-3 border-t border-gray-200 border-dashed flex justify-between items-center text-xs text-gray-500"><span>{currentDate}</span><span className="font-bold text-[#003781]">COMPLETED</span></div>
                     </div>
-                    {/* Buttons: Close removed to force Line OA */}
                     <div className="w-full space-y-3"><a href={lineOALink} target="_blank" rel="noreferrer" onClick={() => {setTimeout(() => {setIsSuccessModalOpen(false); setView('home'); window.location.reload();}, 1000)}} className="flex items-center justify-center gap-2 w-full bg-[#00B900] hover:bg-[#009900] text-white py-3.5 rounded-xl font-bold transition-all shadow-lg shadow-green-500/30 active:scale-95 text-sm animate-pulse transform hover:scale-105"><MessageCircle size={24} fill="white" /> ส่งสรุปรายการเข้า Line OA</a></div>
                 </div>
              </div>
@@ -469,7 +462,8 @@ export default function App() {
         <div className="w-full max-w-7xl mx-auto px-4 md:px-6">
         {view === 'home' && (
            <div className="animate-fade-in w-full overflow-hidden">
-             {bannerSettings.showAnnouncement && bannerSettings.announcementText && ( <div className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-center py-2 px-4 text-xs md:text-sm font-bold relative rounded-lg shadow-sm mb-4 flex justify-center items-center gap-2"><Megaphone size={16} className="animate-pulse hidden md:block"/><span>{bannerSettings.announcementText}</span></div> )}
+             {bannerSettings.showAnnouncement && bannerSettings.announcementText && !campaignStatus.isOpen && ( <div className="bg-gradient-to-r from-red-500 to-pink-500 text-white text-center py-2 px-4 text-xs md:text-sm font-bold relative rounded-lg shadow-sm mb-4 flex justify-center items-center gap-2"><Clock size={16} className="animate-pulse"/><span>{campaignStatus.message}</span></div> )}
+             {bannerSettings.showAnnouncement && bannerSettings.announcementText && campaignStatus.isOpen && ( <div className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-center py-2 px-4 text-xs md:text-sm font-bold relative rounded-lg shadow-sm mb-4 flex justify-center items-center gap-2"><Megaphone size={16} className="animate-pulse hidden md:block"/><span>{bannerSettings.announcementText}</span></div> )}
             <div className="relative w-full aspect-[21/9] min-h-[220px] max-h-[400px] rounded-2xl overflow-hidden shadow-xl mb-6 group bg-gray-200">
                {!isBannerLoaded && (<div className="absolute inset-0 flex items-center justify-center text-gray-400 animate-pulse"><Package size={48} /></div>)}
                <img src={bannerSettings.bannerUrl || "https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=2000"} className={`w-full h-full object-cover transition-opacity duration-700 hover:scale-105 ${isBannerLoaded ? 'opacity-100' : 'opacity-0'}`} onLoad={() => setIsBannerLoaded(true)} alt="Banner"/>
@@ -493,20 +487,22 @@ export default function App() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 w-full pb-10">
               {getFilteredProducts().filter(p => p.active).map((p) => {
                 const isOutOfStock = (p.stock || 0) <= 0;
+                const isCampaignClosed = !campaignStatus.isOpen;
                 return (
                   <div key={p.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group flex flex-col w-full relative h-full">
                     {p.isNew && <div className="absolute top-2 left-2 z-10 bg-red-600 text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded shadow-md flex items-center gap-1"><Tag size={12}/> New</div>}
                     <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100 cursor-zoom-in" onClick={() => setViewingImage(p.imageUrl)}>
-                      <img src={p.imageUrl} className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isOutOfStock ? 'grayscale opacity-70' : ''}`}/> 
+                      <img src={p.imageUrl} className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isOutOfStock || isCampaignClosed ? 'grayscale opacity-70' : ''}`}/> 
                       <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><ZoomIn className="text-white drop-shadow-md" size={32}/></div>
                       {isOutOfStock && <div className="absolute inset-0 flex items-center justify-center bg-black/20"><span className="bg-black/70 text-white px-3 py-1 rounded-lg text-sm font-bold">สินค้าหมด</span></div>}
+                      {isCampaignClosed && !isOutOfStock && <div className="absolute inset-0 flex items-center justify-center bg-black/20"><span className="bg-red-600 text-white px-3 py-1 rounded-lg text-sm font-bold">ปิดรับแลก</span></div>}
                     </div>
                     <div className="p-3 md:p-4 flex flex-col flex-grow">
                       <div className="text-[10px] text-gray-400 mb-1 font-mono uppercase tracking-wide flex justify-between"><span>{p.code || '-'}</span><span className="text-[#003781] font-bold">{p.category}</span></div>
                       <h3 className="font-bold text-sm md:text-base text-gray-900 mb-1 line-clamp-1">{p.name}</h3>
                       <p className="text-gray-500 text-xs mb-2 flex-grow line-clamp-2">{p.description}</p>
                       <div className="flex justify-between items-center mb-3"><span className={`text-xs font-bold ${isOutOfStock ? 'text-red-500' : 'text-green-600'}`}>{isOutOfStock ? 'หมดแล้ว' : `เหลือ ${p.stock} ชิ้น`}</span></div>
-                      <button disabled={isOutOfStock} onClick={() => { setSelectedProduct(p); setSelectedOption(''); setDeliveryMethod('delivery'); setFormData({ name: '', phone: '', address: '', pickupDate: '', remark: '' }); setIsOrderModalOpen(true); }} className={`w-full py-2 rounded-lg font-bold text-xs md:text-sm shadow-md transition-all active:scale-95 ${isOutOfStock ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#003781] text-white hover:bg-[#002860]'}`}>{isOutOfStock ? 'สินค้าหมด' : 'แลกรับสิทธิ์'}</button> 
+                      <button disabled={isOutOfStock || isCampaignClosed} onClick={() => { setSelectedProduct(p); setSelectedOption(''); setDeliveryMethod('delivery'); setFormData({ name: '', phone: '', address: '', pickupDate: '', remark: '' }); setIsOrderModalOpen(true); }} className={`w-full py-2 rounded-lg font-bold text-xs md:text-sm shadow-md transition-all active:scale-95 ${isOutOfStock || isCampaignClosed ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#003781] text-white hover:bg-[#002860]'}`}>{isOutOfStock ? 'สินค้าหมด' : (isCampaignClosed ? 'หมดเวลา' : 'แลกรับสิทธิ์')}</button> 
                     </div>
                   </div>
                 );
@@ -578,7 +574,6 @@ export default function App() {
                                  <div className="space-y-3">
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><label className="text-xs text-gray-500 font-bold">วิธีรับของ</label><select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.deliveryMethod} onChange={e => setEditingOrder({...editingOrder, deliveryMethod: e.target.value})}><option value="จัดส่งถึงบ้าน">จัดส่งถึงบ้าน</option><option value="นัดรับ">นัดรับ</option></select></div>
-                                        {/* FIX: Status Dropdown Logic */}
                                         <div><label className="text-xs text-gray-500 font-bold">สถานะ</label><select className="w-full p-2 border rounded text-gray-900 bg-white" value={editingOrder.status} onChange={e => setEditingOrder({...editingOrder, status: e.target.value})}><option value="pending">รอดำเนินการ</option><option value="confirmed">ยืนยัน/กำลังเตรียม</option><option value="completed">เสร็จสิ้น/ส่งแล้ว</option></select></div>
                                     </div>
                                     <div><label className="text-xs text-gray-500 font-bold flex items-center gap-1"><Truck size={12}/> เลขพัสดุ (Tracking)</label><input className="w-full p-2 border rounded text-gray-900 bg-white placeholder-gray-400" placeholder="เช่น Kerry: KER123..." value={editingOrder.trackingNumber || ''} onChange={e => setEditingOrder({...editingOrder, trackingNumber: e.target.value})} /></div>
@@ -677,6 +672,7 @@ export default function App() {
                      <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200"><label className="text-sm font-bold text-gray-800 mb-2 block flex items-center gap-2"><Megaphone size={16}/> แถบประกาศด้านบน (Top Bar)</label><div className="flex items-center gap-2 mb-2"><input type="checkbox" checked={bannerSettings.showAnnouncement} onChange={e => setBannerSettings({...bannerSettings, showAnnouncement: e.target.checked})} className="w-4 h-4"/><span className="text-sm">แสดงแถบประกาศ</span></div><input className="w-full p-2 border rounded-lg text-gray-900 text-sm" placeholder="ใส่ข้อความประกาศ..." value={bannerSettings.announcementText} onChange={e => setBannerSettings({...bannerSettings, announcementText: e.target.value})} /></div>
                      <div><label className="block text-sm font-bold text-gray-700 mb-1">หัวข้อหลัก (Banner Title)</label><textarea rows={2} className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.title} onChange={e => setBannerSettings({...bannerSettings, title: e.target.value})} /></div>
                      <div><label className="block text-sm font-bold text-gray-700 mb-1">ข้อความรอง (Subtitle / Badge)</label><input className="w-full p-3 border rounded-xl text-gray-900" value={bannerSettings.subtitle} onChange={e => setBannerSettings({...bannerSettings, subtitle: e.target.value})} /></div>
+                     <div className="bg-blue-50 p-4 rounded-xl border border-blue-200"><label className="text-sm font-bold text-gray-800 mb-2 block flex items-center gap-2"><Timer size={16}/> ตั้งเวลาเปิด-ปิดกิจกรรม</label><div className="flex items-center gap-2 mb-4"><input type="checkbox" checked={bannerSettings.enableCampaignTimer || false} onChange={e => setBannerSettings({...bannerSettings, enableCampaignTimer: e.target.checked})} className="w-4 h-4"/><span className="text-sm">เปิดใช้งานระบบตั้งเวลา</span></div>{bannerSettings.enableCampaignTimer && (<div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-gray-600 mb-1 block">เริ่มกิจกรรม</label><input type="datetime-local" className="w-full p-2 border rounded bg-white text-sm" value={bannerSettings.campaignStart || ''} onChange={e => setBannerSettings({...bannerSettings, campaignStart: e.target.value})}/></div><div><label className="text-xs font-bold text-gray-600 mb-1 block">สิ้นสุดกิจกรรม</label><input type="datetime-local" className="w-full p-2 border rounded bg-white text-sm" value={bannerSettings.campaignEnd || ''} onChange={e => setBannerSettings({...bannerSettings, campaignEnd: e.target.value})}/></div></div>)}</div>
                      <div className="border p-4 rounded-xl bg-gray-50"><label className="block text-sm font-bold text-gray-700 mb-2">รูปแบนเนอร์ (Banner Image)</label><input type="file" accept="image/*" onChange={handleBannerImageUpload} className="w-full mb-3 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition"/><input className="w-full p-3 border rounded-xl text-gray-900 text-sm" placeholder="หรือใส่ URL รูปภาพ..." value={bannerSettings.bannerUrl} onChange={e => setBannerSettings({...bannerSettings, bannerUrl: e.target.value})} />{bannerSettings.bannerUrl && (<div className="mt-3 rounded-lg overflow-hidden border"><img src={bannerSettings.bannerUrl} className="w-full h-32 object-cover"/></div>)}</div>
                      <button onClick={handleSaveBanner} className="bg-[#003781] hover:bg-[#002860] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all w-full justify-center md:w-auto"><Save size={18}/> บันทึกการตั้งค่า</button>
                    </div>
